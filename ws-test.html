@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <body>
+    <h3>WagerPlay WS Test</h3>
+    <button id="guest">Guest (через HTTP)</button>
+    <button id="connect">Connect WS</button>
+    <button id="quickplay">Quickplay 4 / 100</button>
+    <button id="move">Move ROCK</button>
+
+    <pre id="log"></pre>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+      let token = "";
+      let matchId = "";
+      let socket = null;
+
+      const logEl = document.getElementById("log");
+      const log = (x) => (logEl.textContent += JSON.stringify(x, null, 2) + "\n\n");
+
+      document.getElementById("guest").onclick = async () => {
+        const r = await fetch("http://localhost:3000/auth/guest", { method: "POST" });
+        const j = await r.json();
+        token = j.token;
+        log({ guest: j });
+      };
+
+      document.getElementById("connect").onclick = () => {
+        socket = io("http://localhost:3000", { auth: { token } });
+        socket.on("connected", (m) => log({ connected: m }));
+        socket.on("quickplay:result", (m) => { log({ quickplay_result: m }); if (m.matchId) matchId = m.matchId; });
+        socket.on("fallback:result", (m) => { log({ fallback_result: m }); if (m.matchId) matchId = m.matchId; });
+        socket.on("match:update", (m) => { log({ match_update: m }); if (m && m.matchId) matchId = m.matchId; });
+        socket.on("queue:waiting", (m) => log({ queue_waiting: m }));
+        socket.on("error", (m) => log({ error: m }));
+      };
+
+      document.getElementById("quickplay").onclick = () => {
+        socket.emit("quickplay", { playersCount: 4, stakeVp: 100 });
+      };
+
+      document.getElementById("move").onclick = () => {
+        socket.emit("move", { matchId, move: "ROCK" });
+      };
+    </script>
+  </body>
+</html>
