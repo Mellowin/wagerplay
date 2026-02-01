@@ -21,6 +21,11 @@ export class MatchmakingController {
         return this.mm.quickPlay(userId, body.playersCount, body.stakeVp);
     }
 
+    @Get('match/:id/audit')
+    async audit(@Param('id') id: string) {
+        return this.mm.getAudit(id);
+    }
+
     @Get('ticket/:id')
     async ticket(@Param('id') id: string) {
         return this.mm.getTicket(id);

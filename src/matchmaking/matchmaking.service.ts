@@ -392,6 +392,11 @@ export class MatchmakingService {
         return m;
     }
 
+    async getAudit(matchId: string) {
+        return this.audit.getByMatch(matchId);
+    }
+
+
     private resolveRoundPure(m: any) {
         // ожидаем, что m.moves заполнены для всех m.aliveIds
         const unique = new Set(Object.values(m.moves));
