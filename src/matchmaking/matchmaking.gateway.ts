@@ -64,7 +64,7 @@ export class MatchmakingGateway {
 
     // Если попали в очередь — через 60 сек пробуем fallback
     if (res.status === 'IN_QUEUE' && res.ticketId) {
-      socket.emit('queue:waiting', { seconds: 60 });
+      socket.emit('queue:waiting', { seconds: 5 });
 
       setTimeout(async () => {
         try {
@@ -79,11 +79,16 @@ export class MatchmakingGateway {
             socket.join(`match:${fb.matchId}`);
             const m = await this.mm.getMatch(fb.matchId);
             socket.emit('match:update', m);
+            
+            // Если остались только боты — запускаем пошаговую игру
+            if (m && m.aliveIds.length > 0 && m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
+              this.processBotRoundsWithDelay(fb.matchId);
+            }
           }
         } catch (e: any) {
           socket.emit('error', { message: e?.message || 'fallback failed' });
         }
-      }, 60_000);
+      }, 5_000);
     }
 
     // Если матч готов сразу — подписываем на комнату и отправляем состояние
@@ -111,6 +116,13 @@ export class MatchmakingGateway {
     // если клиент ещё не в комнате — добавим (на всякий)
     socket.join(`match:${body.matchId}`);
 
+    // Если игрок выбыл и остались только боты — запускаем пошаговую игру
+    if (updated && !updated.aliveIds.includes(userId) && 
+        updated.aliveIds.length > 0 && 
+        updated.aliveIds.every((id: string) => id.startsWith('BOT'))) {
+      this.processBotRoundsWithDelay(body.matchId);
+    }
+
     return { ok: true };
   }
 
@@ -123,5 +135,49 @@ export class MatchmakingGateway {
     socket.emit('match:update', m);
     socket.join(`match:${body.matchId}`);
     return { ok: true };
+  }
+
+  // Пошаговая игра ботов с задержкой 1.5 секунды между раундами
+  async processBotRoundsWithDelay(matchId: string) {
+    const ROUND_DELAY_MS = 1500; // 1.5 секунды между раундами
+    const MAX_ROUNDS = 50; // защита от бесконечного цикла
+    
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      // ⏱️ ЗАДЕРЖКА В НАЧАЛЕ - перед каждым раундом ботов
+      await new Promise(resolve => setTimeout(resolve, ROUND_DELAY_MS));
+      
+      const m = await this.mm.getMatch(matchId);
+      
+      // Проверяем, что матч ещё активен и остались только боты
+      if (!m || m.status === 'FINISHED' || m.aliveIds.length <= 1) {
+        break;
+      }
+      
+      // Проверяем, что все оставшиеся — боты
+      if (!m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
+        break;
+      }
+
+      // Делаем один раунд ботов
+      const updated = await this.mm.processSingleBotRound(matchId);
+      
+      if (!updated) {
+        break;
+      }
+
+      // Отправляем событие нового раунда для звукового эффекта
+      this.server.to(`match:${matchId}`).emit('match:round', { 
+        round: updated.round,
+        aliveCount: updated.aliveIds.length 
+      });
+      
+      // Отправляем обновление всем в комнате матча
+      this.server.to(`match:${matchId}`).emit('match:update', updated);
+
+      // Если матч закончился — выходим
+      if (updated.status === 'FINISHED' || updated.aliveIds.length === 1) {
+        break;
+      }
+    }
   }
 }

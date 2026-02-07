@@ -4,7 +4,10 @@ import { WalletsService } from './wallets.service';
 function getTokenUserId(authHeader?: string): string {
     if (!authHeader) return '';
     const s = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-    return s.trim();
+    const token = s.trim();
+    // Если токен пустой или это слово "Bearer" без UUID
+    if (!token || token === 'Bearer') return '';
+    return token;
 }
 
 @Controller('wallet')
@@ -14,6 +17,9 @@ export class WalletsController {
     @Get()
     async me(@Headers('authorization') auth?: string) {
         const userId = getTokenUserId(auth);
+        if (!userId) {
+            return { userId: '', balanceWp: 0, frozenWp: 0 };
+        }
         const w = await this.wallets.getByUserId(userId);
         if (!w) return { userId, balanceWp: 0, frozenWp: 0 };
         return { userId, balanceWp: w.balanceWp, frozenWp: w.frozenWp };

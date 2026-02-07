@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+// import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -11,6 +13,8 @@ import { AuthModule } from './auth/auth.module';
 import { MatchmakingModule } from './matchmaking/matchmaking.module';
 import { WalletsModule } from './wallets/wallets.module';
 import { AuditModule } from './audit/audit.module';
+import { HouseModule } from './house/house.module';
+import { AvatarsModule } from './avatars/avatars.module';
 
 @Module({
     imports: [
@@ -35,6 +39,11 @@ import { AuditModule } from './audit/audit.module';
         WalletsModule,
         AuditModule,
         MatchmakingModule,
+        HouseModule,
+        AvatarsModule,
+        // ServeStaticModule.forRoot({
+        //     rootPath: join(process.cwd()),
+        // }),
     ],
     controllers: [AppController],
     providers: [AppService],

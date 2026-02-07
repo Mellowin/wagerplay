@@ -21,7 +21,9 @@ export class AuditService {
             roundNo: params.roundNo ?? null,
             payload: params.payload ?? {},
         });
-        return this.repo.save(e);
+        // ⚡ Fire-and-forget: не ждём сохранения в БД
+        this.repo.save(e).catch(err => console.error('Audit log error:', err));
+        return e;
     }
 
     async getByMatch(matchId: string, limit = 200) {
