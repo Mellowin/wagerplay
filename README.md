@@ -64,8 +64,14 @@ This starts:
 - PostgreSQL on port 5432
 - Redis on port 6379
 
-### 4. Run Server
+### 4. One-Command Run
 
+```bash
+# Start everything (in separate terminals)
+docker-compose up -d && npm install && npm run start:dev
+```
+
+Or step by step:
 ```bash
 # Development mode (auto-reload)
 npm run start:dev
@@ -203,7 +209,7 @@ Share the HTTPS URL with friends!
 - **Database:** PostgreSQL + TypeORM
 - **Cache/Queue:** Redis
 - **Container:** Docker + Docker Compose
-- **Testing:** Jest (unit) + Supertest (e2e)
+- **Testing:** Jest (unit), E2E planned / minimal smoke tests
 
 ## 📁 Project Structure
 
@@ -255,7 +261,7 @@ ipconfig | findstr IPv4
 ### Internet (ngrok)
 ```bash
 ngrok http 3000
-# Share: https://xxxx.ngrok-free.app/ws-test.html
+# Share: https://<your-ngrok-domain>/ws-test.html
 ```
 
 ## ⚠️ Known Limitations
@@ -264,10 +270,29 @@ ngrok http 3000
 - Free ngrok URL changes on restart
 - WebSocket connections may drop on mobile background
 
+## 🔒 Security Notes
+
+- JWT required for most user actions (auth endpoints)
+- Public match endpoints (`/match/:id`, `/move`) are intended for demo/testing
+- **Before production:** protect public endpoints with rate limiting and validation
+- Email verification requires SMTP configuration (optional)
+- Use strong JWT_SECRET in production
+
+## 🆘 Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| Port 3000 is busy | `taskkill /F /IM node.exe` or change PORT in .env |
+| Docker not starting | Check Docker Desktop is running: `docker info` |
+| Database connection error | Wait 5-10 seconds after `docker-compose up`, then restart server |
+| CORS errors on mobile | Make sure you're using HTTPS (ngrok) not HTTP |
+| ngrok "Visit site" warning | Open ngrok URL in browser and click "Visit" |
+| WebSocket disconnects | Check firewall/antivirus not blocking port 3000 |
+
 ## 📄 License
 
-MIT
+TBD - Add LICENSE file before production use
 
 ## 🙏 Credits
 
-Built with AI assistance for rapid prototyping and debugging.
+Developed with AI-assisted workflow (ChatGPT/Kimi) for faster prototyping, refactoring and debugging.
