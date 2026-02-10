@@ -64,22 +64,20 @@ This starts:
 - PostgreSQL on port 5432
 - Redis on port 6379
 
-### 4. One-Command Run
+### 4. Run
 
+**First time setup:**
 ```bash
-# Start everything (in separate terminals)
-docker-compose up -d && npm install && npm run start:dev
+docker-compose up -d
+npm install
 ```
 
-Or step by step:
+**Every time:**
 ```bash
-# Development mode (auto-reload)
 npm run start:dev
-
-# Production build
-npm run build
-npm run start:prod
 ```
+
+*Note: Run docker-compose from `backend/` directory where docker-compose.yml is located.*
 
 Server will be available at `http://localhost:3000`
 
@@ -102,8 +100,8 @@ For multiplayer testing:
 | `move` | `{ matchId: string, move: 'ROCK' \| 'PAPER' \| 'SCISSORS' }` | Submit move |
 | `match:get` | `{ matchId: string }` | Get match state |
 | `match:join` | `{ matchId: string }` | Join match room |
-| `chat:game` | `{ matchId: string, text: string }` | Send match chat message |
-| `chat:global` | `{ text: string }` | Send global chat message |
+| `chat:game` (send) | `{ matchId: string, text: string }` | Send match chat message |
+| `chat:global` (send) | `{ text: string }` | Send global chat message |
 
 ### Server → Client
 
@@ -117,8 +115,8 @@ For multiplayer testing:
 | `match:timer` | `{ type: 'move', deadline: number, secondsLeft: number }` | Move timer |
 | `queue:sync` | `{ playersFound: number, totalNeeded: number, secondsLeft: number }` | Queue status |
 | `queue:waiting` | `{ seconds: number, playersFound: number }` | Waiting in queue |
-| `chat:game` | `{ author: string, text: string, timestamp: number }` | Match chat message |
-| `chat:global` | `{ author: string, text: string, timestamp: number }` | Global chat message |
+| `chat:game` (receive) | `{ author: string, text: string, timestamp: number }` | Match chat message |
+| `chat:global` (receive) | `{ author: string, text: string, timestamp: number }` | Global chat message |
 
 ## 🌐 REST API
 
@@ -266,16 +264,15 @@ ngrok http 3000
 
 ## ⚠️ Known Limitations
 
-- Email verification requires SMTP configuration
+- Email verification / password reset require SMTP configuration (optional)
 - Free ngrok URL changes on restart
 - WebSocket connections may drop on mobile background
 
 ## 🔒 Security Notes
 
 - JWT required for most user actions (auth endpoints)
-- Public match endpoints (`/match/:id`, `/move`) are intended for demo/testing
+- Public match endpoints (`/match/:id`, `/move`) are intended for demo/testing only
 - **Before production:** protect public endpoints with rate limiting and validation
-- Email verification requires SMTP configuration (optional)
 - Use strong JWT_SECRET in production
 
 ## 🆘 Troubleshooting
