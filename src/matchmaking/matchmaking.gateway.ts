@@ -23,6 +23,11 @@ export class MatchmakingGateway {
 
   constructor(private mm: MatchmakingService) {}
 
+  afterInit() {
+    // Передаём сервер в сервис для отправки событий
+    this.mm.setServer(this.server);
+  }
+
   handleConnection(socket: Socket) {
     // token = userId (как у нас сейчас)
     const token = (socket.handshake.auth?.token || socket.handshake.query?.token) as string | undefined;
@@ -62,9 +67,18 @@ export class MatchmakingGateway {
     const res = await this.mm.quickPlay(userId, body.playersCount, body.stakeVp);
     socket.emit('quickplay:result', res);
 
-    // Если попали в очередь — через 60 сек пробуем fallback
+    // Если попали в очередь — ждём синхронизированное время
     if (res.status === 'IN_QUEUE' && res.ticketId) {
-      socket.emit('queue:waiting', { seconds: 5 });
+      const secondsLeft = res.secondsLeft || 20;
+      // Отправляем queue:sync с актуальным количеством игроков
+      const queueLen = await this.mm.getQueueLength(body.playersCount, body.stakeVp);
+      socket.emit('queue:sync', { 
+        playersFound: queueLen, 
+        totalNeeded: body.playersCount,
+        secondsLeft: secondsLeft 
+      });
+      socket.emit('queue:waiting', { seconds: secondsLeft, playersFound: queueLen });
+      console.log(`[Gateway] User ${userId.slice(0,8)} in queue, ${queueLen}/${body.playersCount} players, ${secondsLeft}s left`);
 
       setTimeout(async () => {
         try {
@@ -74,28 +88,41 @@ export class MatchmakingGateway {
           const fb = await this.mm.fallbackToBotIfTimedOut(res.ticketId);
           socket.emit('fallback:result', fb);
 
-          // если нашли матч — добавим в комнату матча и отправим состояние
+          // если нашли матч — делаем отсчёт и начинаем
           if (fb.matchId) {
-            socket.join(`match:${fb.matchId}`);
-            const m = await this.mm.getMatch(fb.matchId);
-            socket.emit('match:update', m);
+            // Отсчёт 5 секунд перед матчем с ботами
+            socket.emit('match:found', { matchId: fb.matchId, countdown: 5, mode: 'BOT_MATCH' });
             
-            // Если остались только боты — запускаем пошаговую игру
-            if (m && m.aliveIds.length > 0 && m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
-              this.processBotRoundsWithDelay(fb.matchId);
+            for (let i = 5; i >= 1; i--) {
+              setTimeout(() => {
+                socket.emit('match:countdown', { seconds: i });
+              }, (5 - i) * 1000);
             }
+            
+            setTimeout(async () => {
+              socket.join(`match:${fb.matchId}`);
+              const m = await this.mm.getMatch(fb.matchId);
+              socket.emit('match:start', m);
+              socket.emit('match:update', m);
+              
+              // Если остались только боты — запускаем пошаговую игру
+              if (m && m.aliveIds.length > 0 && m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
+                this.mm.processBotRounds(fb.matchId);
+              }
+            }, 5000);
           }
         } catch (e: any) {
           socket.emit('error', { message: e?.message || 'fallback failed' });
         }
-      }, 5_000);
+      }, 20_000);  // 20 секунд ждём реальных игроков
     }
 
-    // Если матч готов сразу — подписываем на комнату и отправляем состояние
+    // Если матч готов сразу — НИЧЕГО НЕ ДЕЛАЕМ здесь
+    // Все события отправляются из matchmaking.service.ts при создании матча
+    // Это нужно чтобы ВСЕ игроки получили события одновременно
     if (res.status === 'MATCH_READY' && res.matchId) {
-      socket.join(`match:${res.matchId}`);
-      const m = await this.mm.getMatch(res.matchId);
-      socket.emit('match:update', m);
+      console.log(`[Gateway] MATCH_READY for ${userId.slice(0,8)}, match: ${res.matchId.slice(0,8)} - events sent from service`);
+      // Не отправляем события здесь - они уже отправлены из tryAssembleMatch!
     }
 
     return { ok: true };
@@ -112,15 +139,25 @@ export class MatchmakingGateway {
 
     // рассылаем всем участникам комнаты матча (в PVP пригодится)
     this.server.to(`match:${body.matchId}`).emit('match:update', updated);
+    
+    // ⏱️ Отправляем информацию о таймере хода
+    if (updated.moveDeadline) {
+      this.server.to(`match:${body.matchId}`).emit('match:timer', {
+        type: 'move',
+        deadline: updated.moveDeadline,
+        secondsLeft: Math.ceil((updated.moveDeadline - Date.now()) / 1000),
+      });
+    }
 
     // если клиент ещё не в комнате — добавим (на всякий)
     socket.join(`match:${body.matchId}`);
 
     // Если игрок выбыл и остались только боты — запускаем пошаговую игру
+    // (теперь эта логика внутри submitMove, оставляем как fallback)
     if (updated && !updated.aliveIds.includes(userId) && 
         updated.aliveIds.length > 0 && 
         updated.aliveIds.every((id: string) => id.startsWith('BOT'))) {
-      this.processBotRoundsWithDelay(body.matchId);
+      this.mm.processBotRounds(body.matchId);
     }
 
     return { ok: true };
@@ -134,6 +171,69 @@ export class MatchmakingGateway {
     const m = await this.mm.getMatch(body.matchId);
     socket.emit('match:update', m);
     socket.join(`match:${body.matchId}`);
+    return { ok: true };
+  }
+
+  @SubscribeMessage('match:join')
+  async onMatchJoin(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { matchId: string },
+  ) {
+    socket.join(`match:${body.matchId}`);
+    console.log(`[match:join] ${socket.data.userId} joined room match:${body.matchId}`);
+    return { ok: true };
+  }
+
+  @SubscribeMessage('chat:message')
+  async onChatMessage(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { matchId: string; text: string },
+  ) {
+    const userId = this.getUserId(socket);
+    
+    // Отправляем сообщение всем в комнате матча
+    this.server.to(`match:${body.matchId}`).emit('chat:message', {
+      author: userId,
+      text: body.text,
+      matchId: body.matchId,
+      timestamp: Date.now(),
+    });
+    
+    return { ok: true };
+  }
+
+  @SubscribeMessage('chat:game')
+  async onChatGame(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { matchId: string; text: string },
+  ) {
+    const userId = this.getUserId(socket);
+    
+    // Отправляем сообщение всем в комнате матча
+    this.server.to(`match:${body.matchId}`).emit('chat:game', {
+      author: userId,
+      text: body.text,
+      matchId: body.matchId,
+      timestamp: Date.now(),
+    });
+    
+    return { ok: true };
+  }
+
+  @SubscribeMessage('chat:global')
+  async onChatGlobal(
+    @ConnectedSocket() socket: Socket,
+    @MessageBody() body: { text: string },
+  ) {
+    const userId = this.getUserId(socket);
+    
+    // Отправляем сообщение всем подключенным клиентам
+    this.server.emit('chat:global', {
+      author: userId,
+      text: body.text,
+      timestamp: Date.now(),
+    });
+    
     return { ok: true };
   }
 

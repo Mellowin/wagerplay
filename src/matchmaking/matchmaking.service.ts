@@ -12,6 +12,12 @@ import { HouseService } from '../house/house.service';
 const ALLOWED_PLAYERS = new Set([2, 3, 4, 5]);
 const ALLOWED_STAKES = new Set([100, 200, 500, 1000, 2500, 5000, 10000]);
 
+// ⏱️ Таймеры игры
+const MATCH_SEARCH_TIMEOUT_SEC = 20;      // 60 сек на поиск матча
+const MOVE_TIMEOUT_SEC = 12;              // 12 сек на ход
+const BOT_FALLBACK_TIMEOUT_SEC = 5;       // 5 сек до ботов если нет соперников
+const MIN_REAL_PLAYERS_FOR_PVP = 2;       // Минимум 2 игрока для PVP
+
 // 🎮 Реалистичные ники для ботов
 const BOT_NICKNAMES = [
     'Alex_Pro', 'LuckyShot', 'MasterRock', 'ScissorsKing', 'PaperTigress',
@@ -63,6 +69,10 @@ type Match = {
     // 🎮 Никнеймы ботов (id -> nickname)
     botNames?: Record<string, string>;
 
+    // ⏱️ Таймеры
+    moveDeadline?: number;        // Дедлайн для хода (timestamp)
+    moveTimerStarted?: number;    // Когда запустился таймер хода
+    
     createdAt: number;
     status: MatchStatus;
 
@@ -100,6 +110,12 @@ export class MatchmakingService {
             host: this.cfg.get<string>('REDIS_HOST') || 'localhost',
             port: Number(this.cfg.get<string>('REDIS_PORT') || 6379),
         });
+    }
+
+    private server: any;
+
+    setServer(server: any) {
+        this.server = server;
     }
 
     private qKey(playersCount: number, stakeVp: number) {
@@ -241,15 +257,58 @@ export class MatchmakingService {
         };
 
         const q = this.qKey(playersCount, stakeVp);
+        const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
+        
+        // Проверяем, есть ли уже время начала очереди
+        let queueStartTime = await this.redis.get(queueTimeKey);
+        if (!queueStartTime) {
+            // Первый игрок - сохраняем время начала
+            queueStartTime = Date.now().toString();
+            await this.redis.set(queueTimeKey, queueStartTime, 'EX', 300);
+        }
+        
         await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 300);
         await this.redis.rpush(q, ticket.ticketId);
+        
+        const queueLen = await this.redis.llen(q);
+        console.log(`[quickPlay] User ${userId.slice(0,8)} joined queue ${q}, players: ${queueLen}/5`);
 
-        const matchId = await this.tryAssembleMatch(playersCount, stakeVp);
+        // Отправляем всем в очереди обновление (синхронизация таймера)
+        const elapsedSec = Math.floor((Date.now() - parseInt(queueStartTime)) / 1000);
+        const remainingSec = Math.max(0, 20 - elapsedSec);
+        
+        if (this.server) {
+            const sockets = await this.server.fetchSockets();
+            console.log(`[quickPlay] Broadcasting queue:sync to ${sockets.length} sockets, queue: ${queueLen} players`);
+            let notifiedCount = 0;
+            for (const socket of sockets) {
+                const socketUserId = socket.data?.userId || socket.handshake?.auth?.userId;
+                console.log(`[quickPlay] Checking socket for user: ${socketUserId?.slice(0,8)}`);
+                // Проверяем, есть ли этот игрок в нашей очереди
+                const hasTicket = await this.hasExistingTicket(socketUserId, playersCount, stakeVp);
+                if (hasTicket) {
+                    socket.emit('queue:sync', { 
+                        playersFound: queueLen, 
+                        totalNeeded: playersCount,
+                        secondsLeft: remainingSec,
+                        elapsed: elapsedSec 
+                    });
+                    notifiedCount++;
+                    console.log(`[quickPlay] Sent queue:sync to ${socketUserId.slice(0,8)}`);
+                }
+            }
+            console.log(`[quickPlay] Notified ${notifiedCount} players about queue update`);
+        }
+
+        // Пробуем собрать матч ТОЛЬКО если набралось 5 игроков (не по таймауту)
+        const matchId = await this.tryAssembleMatch(playersCount, stakeVp, false);
         if (matchId) {
+            // Матч создан - удаляем ключ времени очереди
+            await this.redis.del(queueTimeKey);
             return { status: 'MATCH_READY', matchId };
         }
 
-        return { status: 'IN_QUEUE', ticketId: ticket.ticketId };
+        return { status: 'IN_QUEUE', ticketId: ticket.ticketId, secondsLeft: remainingSec };
     }
 
     async getTicket(ticketId: string) {
@@ -264,43 +323,87 @@ export class MatchmakingService {
         return JSON.parse(raw) as Match;
     }
 
-    async tryAssembleMatch(playersCount: number, stakeVp: number) {
+    async getQueueLength(playersCount: number, stakeVp: number): Promise<number> {
         const q = this.qKey(playersCount, stakeVp);
+        return await this.redis.llen(q);
+    }
+
+    async tryAssembleMatch(playersCount: number, stakeVp: number, force: boolean = false) {
+        const q = this.qKey(playersCount, stakeVp);
+        const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
 
         const len = await this.redis.llen(q);
-        if (len < playersCount) return null;
+        console.log(`[tryAssembleMatch] Queue ${q}: ${len} players`);
+        
+        // ✅ Если меньше 2 реальных игроков - не собираем матч (ждем еще)
+        if (len < 2) {
+            console.log(`[tryAssembleMatch] Not enough players (${len}), waiting...`);
+            return null;
+        }
+        
+        // ✅ Проверяем условия для создания матча:
+        // 1. Прошло 20 секунд с начала очереди (force из fallback)
+        // 2. Или набралось 5 игроков (полная команда)
+        const queueStartTime = await this.redis.get(queueTimeKey);
+        const elapsedSec = queueStartTime ? Math.floor((Date.now() - parseInt(queueStartTime)) / 1000) : 0;
+        const isTimeUp = elapsedSec >= 20;
+        const isFull = len >= playersCount;
+        
+        if (!force && !isTimeUp && !isFull) {
+            console.log(`[tryAssembleMatch] Waiting... ${len}/5 players, ${elapsedSec}/20 sec`);
+            return null;
+        }
+        
+        console.log(`[tryAssembleMatch] Creating match! ${len} players, time: ${elapsedSec}s, force: ${force}`);
 
+        // ✅ Берем всех из очереди (но не более playersCount)
+        const takeCount = Math.min(len, playersCount);
+        
         const ticketIds: string[] = [];
-        for (let i = 0; i < playersCount; i++) {
+        for (let i = 0; i < takeCount; i++) {
             const id = await this.redis.lpop(q);
             if (id) ticketIds.push(id);
         }
 
-        if (ticketIds.length < playersCount) {
+        if (ticketIds.length < 2) {
+            // Не набралось 2 игроков - возвращаем обратно
             if (ticketIds.length) await this.redis.lpush(q, ...ticketIds.reverse());
             return null;
         }
+        
+        // ✅ Есть минимум 2 игрока - собираем матч (остальное добьём ботами)
 
         const tickets: Ticket[] = [];
         const seenUserIds = new Set<string>();
+        const expiredIds: string[] = [];
         
         for (const tId of ticketIds) {
             const t = await this.getTicket(tId);
             if (!t) {
-                // тикета нет — вернем то что забрали обратно
-                if (ticketIds.length) await this.redis.lpush(q, ...ticketIds.reverse());
-                return null;
+                // тикет истёк - удаляем его из очереди и продолжаем
+                console.log(`[tryAssembleMatch] Ticket ${tId.slice(0,8)} expired, skipping`);
+                expiredIds.push(tId);
+                continue;
             }
             // ✅ Проверяем что один игрок не попал дважды
             if (seenUserIds.has(t.userId)) {
-                // Дубликат! Удаляем дубликат и возвращаем остальные
+                // Дубликат! Удаляем дубликат
+                console.log(`[tryAssembleMatch] Duplicate ticket for user ${t.userId.slice(0,8)}, deleting`);
                 await this.redis.del(this.ticketKey(t.ticketId));
-                const remaining = ticketIds.filter(id => id !== tId);
-                if (remaining.length) await this.redis.lpush(q, ...remaining.reverse());
-                return null;
+                continue;
             }
             seenUserIds.add(t.userId);
             tickets.push(t);
+        }
+        
+        // Если не набралось 2 валидных тикетов - возвращаем их в очередь
+        if (tickets.length < 2) {
+            console.log(`[tryAssembleMatch] Only ${tickets.length} valid tickets, returning to queue`);
+            if (tickets.length) {
+                const validIds = tickets.map(t => t.ticketId);
+                await this.redis.lpush(q, ...validIds.reverse());
+            }
+            return null;
         }
 
         const playerIds = tickets.map(t => t.userId);
@@ -334,7 +437,13 @@ export class MatchmakingService {
         }
 
 
-        if (playerIds.length < playersCount) return null;
+        // ✅ Добавляем ботов если реальных игроков меньше нужного
+        const botsNeeded = playersCount - playerIds.length;
+        const botIds: string[] = [];
+        for (let i = 0; i < botsNeeded; i++) {
+            botIds.push(`BOT${i + 1}`);
+        }
+        playerIds.push(...botIds);
 
         // ✅ UPDATED: добавили aliveIds/eliminatedIds/moves
         const potVp = stakeVp * playersCount;
@@ -352,7 +461,7 @@ export class MatchmakingService {
             settled: false,
             payoutVp,
             playerIds,
-            aliveIds: [...playerIds],
+            aliveIds: [...playerIds],  // теперь включает и ботов
             eliminatedIds: [],
             createdAt: Date.now(),
             status: 'READY',
@@ -376,19 +485,90 @@ export class MatchmakingService {
                 playerIds: match.playerIds,
             },
         });
+        
+        // ✅ Добавляем игроков в комнату матча и отправляем события ВСЕМ игрокам
+        if (this.server) {
+            const matchRoom = `match:${match.matchId}`;
+            const realPlayerIds = match.playerIds.filter(pid => !pid.startsWith('BOT'));
+            
+            for (const pid of realPlayerIds) {
+                const sockets = await this.server.fetchSockets();
+                const playerSocket = sockets.find(s => s.data?.userId === pid || s.handshake?.auth?.userId === pid);
+                if (playerSocket) {
+                    playerSocket.join(matchRoom);
+                    // 1. Отправляем match:ready
+                    playerSocket.emit('match:ready', { matchId: match.matchId });
+                    // 2. Отправляем match:found с отсчётом
+                    playerSocket.emit('match:found', { matchId: match.matchId, countdown: 5, mode: 'PVP' });
+                }
+            }
+            console.log(`[tryAssembleMatch] Match ${match.matchId.slice(0,8)} created, notified ${realPlayerIds.length} players`);
+            
+            // Отправляем отсчёт 5-4-3-2-1 всем в комнате
+            for (let i = 5; i >= 1; i--) {
+                setTimeout(() => {
+                    if (this.server) {
+                        this.server.to(matchRoom).emit('match:countdown', { seconds: i });
+                    }
+                }, (5 - i) * 1000);
+            }
+            
+            // 3. Через 5 сек отправляем match:start всем
+            setTimeout(async () => {
+                const m = await this.getMatch(match.matchId);
+                if (m && this.server) {
+                    this.server.to(matchRoom).emit('match:start', m);
+                    this.server.to(matchRoom).emit('match:update', m);
+                    // Запускаем таймер первого хода
+                    const deadline = Date.now() + 12000;
+                    this.server.to(matchRoom).emit('match:timer', {
+                        type: 'move',
+                        deadline,
+                        secondsLeft: 12,
+                    });
+                    this.startMoveTimer(match.matchId, 12);
+                    console.log(`[tryAssembleMatch] Match ${match.matchId.slice(0,8)} started!`);
+                }
+            }, 5000);
+        }
 
+        // Удаляем ключ времени очереди (матч создан)
+        await this.redis.del(queueTimeKey);
+        
         return match.matchId;
     }
 
     // Fallback: если тикет висит >BOT_TIMEOUT_SEC — создаём BOT_MATCH
     async fallbackToBotIfTimedOut(ticketId: string) {
-        const BOT_TIMEOUT_SEC = 5;
+        const BOT_TIMEOUT_SEC = 30;
 
         const t = await this.getTicket(ticketId);
-        if (!t) throw new BadRequestException('Ticket not found (expired or already used)');
+        if (!t) {
+            console.log(`[fallback] Ticket ${ticketId} not found - match may already be created`);
+            return { status: 'ALREADY_IN_MATCH' };
+        }
+
+        // ✅ Сначала пробуем собрать PvP матч из очереди (force=true)
+        console.log(`[fallback] Trying to assemble PvP match...`);
+        const pvpMatchId = await this.tryAssembleMatch(t.playersCount, t.stakeVp, true);
+        if (pvpMatchId) {
+            console.log(`[fallback] PvP match created: ${pvpMatchId.slice(0,8)}`);
+            // Удаляем текущий тикет так как игрок вошёл в матч
+            await this.redis.del(this.ticketKey(ticketId));
+            return { status: 'MATCH_READY', matchId: pvpMatchId };
+        }
 
         const ageSec = (Date.now() - t.createdAt) / 1000;
-        // ✅ Если ещё не прошло 5 секунд — ждём оставшееся время и вызываем себя рекурсивно
+        
+        // Если ещё не прошло 20 секунд — ждём оставшееся время
+        if (ageSec < 20) {
+            const msLeft = Math.ceil((20 - ageSec) * 1000);
+            console.log(`[fallback] Waiting ${msLeft}ms more...`);
+            await new Promise(r => setTimeout(r, msLeft));
+            return this.fallbackToBotIfTimedOut(ticketId);
+        }
+        
+        // Если ещё не прошло 30 секунд — ждём оставшееся время
         if (ageSec < BOT_TIMEOUT_SEC) {
             const msLeft = Math.ceil((BOT_TIMEOUT_SEC - ageSec) * 1000);
             await new Promise(r => setTimeout(r, msLeft));
@@ -527,6 +707,14 @@ export class MatchmakingService {
 
     private async settleIfFinished(m: any) {
         if (m.status !== 'FINISHED') return m;
+        
+        // ⚠️ Перезагружаем из Redis чтобы проверить, не был ли уже settlement
+        const currentM = await this.getMatch(m.matchId);
+        if (currentM?.settled) {
+            console.log(`[settleIfFinished] Match ${m.matchId} already settled, skipping`);
+            return currentM;
+        }
+        
         if (m.settled) return m;
 
         const houseId = this.house.getHouseId();
@@ -650,7 +838,6 @@ export class MatchmakingService {
     private async updatePlayerStats(userId: string, m: any) {
         const start = Date.now();
         const isWinner = m.winnerId === userId;
-        const isEliminated = m.eliminatedIds?.includes(userId);
         
         // Находим или создаём запись статистики
         let stats = await this.userStatsRepo.findOne({ where: { userId } });
@@ -687,14 +874,15 @@ export class MatchmakingService {
         } else {
             stats.losses += 1;
             stats.totalLostVp += m.stakeVp;
-            stats.winStreak = 0; // Сброс серии
+            stats.winStreak = 0;
         }
 
         if (m.stakeVp > stats.biggestStakeVp) {
             stats.biggestStakeVp = m.stakeVp;
         }
 
-        await this.userStatsRepo.save(stats);
+        // ✅ Используем upsert чтобы избежать duplicate key error
+        await this.userStatsRepo.upsert(stats, ['userId']);
         console.log(`[updatePlayerStats] ${userId} done in ${Date.now() - start}ms`);
     }
 
@@ -855,7 +1043,9 @@ export class MatchmakingService {
         }
 
         // Проверка: не выбыл ли уже
+        console.log(`[submitMove] Check elimination: userId=${userId}, aliveIds=${JSON.stringify(m.aliveIds)}, includes=${m.aliveIds.includes(userId)}`);
         if (!m.aliveIds.includes(userId)) {
+            console.log(`[submitMove] REJECTED: ${userId} is eliminated`);
             throw new BadRequestException('You are eliminated from this match');
         }
 
@@ -894,10 +1084,16 @@ export class MatchmakingService {
             return m;
         }
 
-        const snapshotMoves: Record<string, Move> = { ...m.moves };
+        // ⚠️ Только ходы живых игроков!
+        const snapshotMoves: Record<string, Move> = {};
+        for (const id of m.aliveIds) {
+            if (m.moves[id]) {
+                snapshotMoves[id] = m.moves[id];
+            }
+        }
 
         // --- Решаем раунд ---
-        const unique = new Set(Object.values(m.moves));
+        const unique = new Set(Object.values(snapshotMoves));
 
         // Ничья: все одинаково ИЛИ присутствуют все три (R,P,S)
         if (unique.size === 1 || unique.size === 3) {
@@ -920,11 +1116,20 @@ export class MatchmakingService {
             m.moves = {};
             console.log(`[submitMove] TIE resolved: ${Date.now() - start}ms`);
 
-            // НЕ запускаем autoplay сразу — Gateway сделает это с задержкой
-            // if (m.aliveIds.length > 0 && m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
-            //     this.autoplayBotsUntilFinished(m);
-            //     await this.settleIfFinished(m);
-            // }
+            // ✅ Сначала сохраняем в Redis, потом запускаем таймер!
+            await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
+
+            // Запускаем таймер для следующего раунда
+            this.startMoveTimer(m.matchId, MOVE_TIMEOUT_SEC);
+
+            // 🤖 Если остались только боты - запускаем их игру
+            const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
+            if (!hasRealPlayers && this.server) {
+                console.log(`[submitMove] Only bots left after tie, triggering bot rounds`);
+                setTimeout(() => {
+                    this.processBotRounds(m.matchId);
+                }, 1500);
+            }
 
             if (m.winnerId) {
                 await this.settleIfFinished(m);
@@ -943,7 +1148,6 @@ export class MatchmakingService {
                 });
             }
 
-            await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
             return m;
         }
 
@@ -1025,8 +1229,288 @@ export class MatchmakingService {
         //     ...
         // }
 
+        // ✅ Сначала сохраняем в Redis, потом запускаем таймер!
         await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
+
+        // Запускаем таймер для следующего раунда
+        this.startMoveTimer(m.matchId, MOVE_TIMEOUT_SEC);
+
+        // 🤖 Если остались только боты - запускаем их игру
+        const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
+        if (!hasRealPlayers && this.server) {
+            console.log(`[submitMove] Only bots left after elimination, triggering bot rounds`);
+            setTimeout(() => {
+                this.processBotRounds(m.matchId);
+            }, 1500);
+        }
+
         console.log(`[submitMove] END: ${Date.now() - start}ms`);
         return m;
+    }
+
+    // ⏱️ Запускает таймер хода (12 секунд)
+    async startMoveTimer(matchId: string, seconds: number) {
+        const m = await this.getMatch(matchId);
+        if (!m || m.status === 'FINISHED') return;
+        
+        // Если остались только боты - не запускаем таймер
+        const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
+        if (!hasRealPlayers) {
+            console.log(`[startMoveTimer] Only bots left, skipping timer`);
+            return;
+        }
+
+        // Устанавливаем дедлайн
+        m.moveDeadline = Date.now() + seconds * 1000;
+        m.moveTimerStarted = Date.now();
+        
+        await this.redis.set(this.matchKey(matchId), JSON.stringify(m), 'EX', 600);
+        
+        console.log(`[startMoveTimer] Match ${matchId}: ${seconds}s deadline set`);
+
+        // ⏱️ Отправляем событие таймера всем клиентам
+        if (this.server) {
+            this.server.to(`match:${matchId}`).emit('match:timer', {
+                type: 'move',
+                deadline: m.moveDeadline,
+                secondsLeft: seconds,
+            });
+        }
+
+        // Запускаем таймаут (сохраняем дедлайн и раунд для проверки актуальности)
+        const expectedDeadline = m.moveDeadline;
+        const expectedRound = m.round;
+        setTimeout(() => {
+            this.processMoveTimeout(matchId, expectedDeadline, expectedRound);
+        }, seconds * 1000);
+    }
+
+    // ⏱️ Обработка таймаута хода (игрок не сделал ход)
+    async processMoveTimeout(matchId: string, expectedDeadline?: number, expectedRound?: number) {
+        console.log(`[processMoveTimeout] Processing timeout for ${matchId}, expectedRound=${expectedRound}`);
+        
+        let m = await this.getMatch(matchId);
+        if (!m || m.status === 'FINISHED') {
+            console.log(`[processMoveTimeout] Match not found or finished`);
+            return;
+        }
+        
+        // Проверяем, не изменился ли раунд (раунд уже резолвлен)
+        if (expectedRound && m.round !== expectedRound) {
+            console.log(`[processMoveTimeout] Round changed (${expectedRound} != ${m.round}), skipping outdated timeout`);
+            return;
+        }
+        
+        // Проверяем, не устарел ли дедлайн
+        if (expectedDeadline && m.moveDeadline && m.moveDeadline !== expectedDeadline) {
+            console.log(`[processMoveTimeout] Deadline changed (${expectedDeadline} != ${m.moveDeadline}), skipping outdated timeout`);
+            return;
+        }
+        
+        console.log(`[processMoveTimeout] Initial aliveIds: ${JSON.stringify(m.aliveIds)}, moves: ${JSON.stringify(m.moves)}, round: ${m.round}`);
+
+        // ⚠️ КРИТИЧНО: Перезагружаем из Redis чтобы получить актуальный aliveIds
+        // (игроки могли выбыть пока шел таймер)
+        const freshM = await this.getMatch(matchId);
+        if (!freshM || freshM.status === 'FINISHED') {
+            console.log(`[processMoveTimeout] Match not found or finished after reload`);
+            return;
+        }
+        // Проверяем раунд снова после reload
+        if (expectedRound && freshM.round !== expectedRound) {
+            console.log(`[processMoveTimeout] Round changed after reload (${expectedRound} != ${freshM.round}), skipping`);
+            return;
+        }
+        m = freshM;
+        console.log(`[processMoveTimeout] Fresh aliveIds: ${JSON.stringify(m.aliveIds)}, moves: ${JSON.stringify(m.moves)}`);
+
+        // Проверяем, не все ли уже походили
+        const allMoved = m.aliveIds.every((id) => !!(m?.moves?.[id]));
+        if (allMoved) {
+            console.log(`[processMoveTimeout] All players moved, skipping`);
+            return;
+        }
+
+        // Для игроков без хода делаем рандомный ход
+        let autoMovesMade = false;
+        for (const id of m.aliveIds) {
+            if (!m.moves?.[id]) {
+                const randomMove: Move = ['ROCK', 'PAPER', 'SCISSORS'][Math.floor(Math.random() * 3)] as Move;
+                console.log(`[processMoveTimeout] Auto-move for ${id}: ${randomMove}`);
+                m.moves[id] = randomMove;
+                autoMovesMade = true;
+                
+                await this.audit.log({
+                    eventType: 'MOVE_AUTO',
+                    matchId: m.matchId,
+                    actorId: id,
+                    roundNo: m.round,
+                    payload: { move: randomMove, reason: 'TIMEOUT' },
+                });
+            }
+        }
+
+        if (autoMovesMade && m) {
+            // ⚠️ Перед сохранением ещё раз проверяем раунд
+            const currentM = await this.getMatch(matchId);
+            if (currentM && currentM.round !== m.round) {
+                console.log(`[processMoveTimeout] Round changed before save (${m.round} != ${currentM.round}), discarding auto-moves`);
+                return;
+            }
+            
+            // Сохраняем и резолвим раунд
+            await this.redis.set(this.matchKey(matchId), JSON.stringify(m), 'EX', 600);
+            await this.resolveRoundAfterAutoMoves(m);
+        }
+    }
+
+    // ⏱️ Резолв раунда после автоматических ходов
+    private async resolveRoundAfterAutoMoves(m: any) {
+        // ⚠️ КРИТИЧНО: Перезагружаем из Redis для актуальных данных
+        const freshM = await this.getMatch(m.matchId);
+        if (!freshM || freshM.status === 'FINISHED') {
+            console.log(`[resolveRoundAfterAutoMoves] Match not found or finished`);
+            return;
+        }
+        // Если раунд изменился - пропускаем
+        if (freshM.round !== m.round) {
+            console.log(`[resolveRoundAfterAutoMoves] Round changed (${m.round} != ${freshM.round}), skipping`);
+            return;
+        }
+        // Сохраняем auto-moves перед перезаписью
+        const autoMoves = { ...m.moves };
+        // Используем свежие данные
+        m = freshM;
+        // Применяем наши auto-moves к свежим данным (только для живых игроков без хода)
+        for (const [id, move] of Object.entries(autoMoves)) {
+            if (m.aliveIds.includes(id) && !m.moves[id]) {
+                m.moves[id] = move as Move;
+            }
+        }
+        
+        const allMoved = m.aliveIds.every((id) => !!m.moves?.[id]);
+        if (!allMoved) return;
+
+        // Копируем логику из submitMove для резолва раунда
+        // ⚠️ Только для живых игроков!
+        const snapshotMoves: Record<string, Move> = {};
+        for (const id of m.aliveIds) {
+            if (m.moves[id]) {
+                snapshotMoves[id] = m.moves[id];
+            }
+        }
+        const unique = new Set(Object.values(snapshotMoves));
+
+        if (unique.size === 1 || unique.size === 3) {
+            // Ничья
+            m.lastRound = {
+                roundNo: m.round,
+                moves: snapshotMoves,
+                outcome: 'TIE',
+                reason: unique.size === 1 ? 'ALL_SAME' : 'ALL_THREE',
+            };
+            m.round += 1;
+            m.moves = {};
+        } else {
+            // Есть победитель
+            const beats: Record<Move, Move> = { ROCK: 'SCISSORS', SCISSORS: 'PAPER', PAPER: 'ROCK' };
+            const [a, b] = Array.from(unique) as Move[];
+            const winningMove = beats[a] === b ? a : b;
+            const winners = Object.entries(m.moves).filter(([, mv]) => mv === winningMove).map(([id]) => id);
+            const losers = m.aliveIds.filter((id) => !winners.includes(id));
+
+            m.lastRound = {
+                roundNo: m.round,
+                moves: snapshotMoves,
+                outcome: 'ELIMINATION',
+                winningMove,
+                winners,
+                losers,
+            };
+
+            m.eliminatedIds.push(...losers);
+            m.aliveIds = m.aliveIds.filter((id) => winners.includes(id));
+
+            if (m.aliveIds.length === 1) {
+                m.status = 'FINISHED';
+                m.winnerId = m.aliveIds[0];
+                m.finishedAt = Date.now();
+                m.moves = {};
+                await this.settleIfFinished(m);
+            } else {
+                m.round += 1;
+                m.moves = {};
+            }
+        }
+
+        // ⚠️ Проверяем, не изменились ли данные в Redis с момента загрузки
+        const currentM = await this.getMatch(m.matchId);
+        if (currentM && (currentM.round > m.round || currentM.status === 'FINISHED')) {
+            console.log(`[resolveRoundAfterAutoMoves] Data in Redis is newer (round ${currentM.round} vs ${m.round}, status ${currentM.status}), skipping save`);
+            return;
+        }
+        
+        // ✅ Сначала сохраняем в Redis, потом запускаем таймер!
+        await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
+        
+        // Запускаем таймер только если матч не закончился
+        if (m.status !== 'FINISHED') {
+            this.startMoveTimer(m.matchId, MOVE_TIMEOUT_SEC);
+        }
+        
+        // 📢 Отправляем обновление матча всем клиентам
+        if (this.server) {
+            this.server.to(`match:${m.matchId}`).emit('match:update', m);
+        }
+        
+        console.log(`[resolveRoundAfterAutoMoves] Round ${m.round} resolved, alive: ${m.aliveIds.length}, status: ${m.status}`);
+        
+        // 🤖 Если остались только боты - запускаем их игру
+        const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
+        if (!hasRealPlayers && m.status !== 'FINISHED' && this.server) {
+            console.log(`[resolveRoundAfterAutoMoves] Only bots left, triggering bot rounds`);
+            // Запускаем ботов с небольшой задержкой
+            setTimeout(() => {
+                this.processBotRounds(m.matchId);
+            }, 1500);
+        }
+    }
+
+    // 🤖 Автоматическая игра ботов после выбывания игрока
+    async processBotRounds(matchId: string) {
+        const ROUND_DELAY_MS = 1500;
+        const MAX_ROUNDS = 50;
+        
+        for (let round = 0; round < MAX_ROUNDS; round++) {
+            await new Promise(resolve => setTimeout(resolve, ROUND_DELAY_MS));
+            
+            const m = await this.getMatch(matchId);
+            
+            if (!m || m.status === 'FINISHED' || m.aliveIds.length <= 1) {
+                break;
+            }
+            
+            if (!m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
+                break;
+            }
+
+            const updated = await this.processSingleBotRound(matchId);
+            
+            if (!updated) {
+                break;
+            }
+
+            if (this.server) {
+                this.server.to(`match:${matchId}`).emit('match:round', { 
+                    round: updated.round,
+                    aliveCount: updated.aliveIds.length 
+                });
+                this.server.to(`match:${matchId}`).emit('match:update', updated);
+            }
+
+            if (updated.status === 'FINISHED' || updated.aliveIds.length === 1) {
+                break;
+            }
+        }
     }
 }

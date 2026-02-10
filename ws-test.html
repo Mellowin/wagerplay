@@ -1110,7 +1110,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         // API Config
-        const API_URL = 'http://localhost:3000';
+        const API_URL = ''; // Пусто для относительных путей (работает и localhost и ngrok)
         
         // Game State
         let token = "";
@@ -1526,10 +1526,10 @@
 
             if (currentChatTab === 'global') {
                 if (socket) socket.emit('chat:global', { text });
-                addChatMessage('user', author, text, 'global');
+                // Сообщение добавится при получении от сервера (убрали дублирование)
             } else if (currentChatTab === 'game' && currentGameChatId) {
                 if (socket) socket.emit('chat:game', { matchId: currentGameChatId, text });
-                addChatMessage('user', author, text, 'game', currentGameChatId);
+                // Сообщение добавится при получении от сервера (убрали дублирование)
             }
 
             input.value = '';
@@ -1676,6 +1676,9 @@
                     showUserInfo(data.email || data.username);
                     log(`✅ Вход выполнен: ${data.email || data.username}`);
                     setButtons({ guest: false, connect: true, quickplay: false, balance: true, logs: false });
+                    
+                    // Загружаем полный профиль с аватаркой
+                    await loadProfile();
                     updateUserInfoAfterLogin();
                 } else {
                     // Если email не подтвержден — предлагаем отправить письмо повторно
@@ -1722,7 +1725,7 @@
             }
 
             try {
-                const r = await fetch('http://localhost:3000/auth/register', {
+                const r = await fetch('/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, password, username })
@@ -1750,7 +1753,7 @@
             }
 
             try {
-                const r = await fetch('http://localhost:3000/auth/forgot-password', {
+                const r = await fetch('/auth/forgot-password', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email })
@@ -1815,6 +1818,34 @@
         const sounds = {
             click: () => playTone(800, 0.1, 'square'),
             error: () => playMelody([200, 150], 0.1),
+            matchFound: () => {
+                // 🎮 МАТЧ НАЙДЕН! - радостный звук
+                const now = audioCtx.currentTime;
+                const notes = [
+                    { f: 440, d: 0.1, t: 0 },
+                    { f: 554, d: 0.1, t: 0.1 },
+                    { f: 659, d: 0.3, t: 0.2 },
+                ];
+                notes.forEach(n => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.frequency.value = n.f;
+                    osc.type = 'triangle';
+                    gain.gain.setValueAtTime(0.0, now + n.t);
+                    gain.gain.linearRampToValueAtTime(0.4, now + n.t + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + n.t + n.d);
+                    osc.start(now + n.t);
+                    osc.stop(now + n.t + n.d);
+                });
+            },
+            countdown: (num) => {
+                // ⏱️ Звук отсчёта (бип для каждой цифры)
+                const freq = num <= 3 ? 880 : 660; // Выше звук для последних 3 сек
+                playTone(freq, 0.15, 'square');
+            },
+            matchStart: () => playMelody([440, 554, 659, 880], 0.1),
             win: () => {
                 // 🏆 Победная мелодия (фанфары) ~2.5 сек
                 const now = audioCtx.currentTime;
@@ -1891,7 +1922,7 @@
                 return;
             }
             try {
-                const r = await fetch(`http://localhost:3000/matchmaking/match/${matchId}/audit`);
+                const r = await fetch(`/matchmaking/match/${matchId}/audit`);
                 const logs = await r.json();
                 console.log('=== SERVER LOGS ===', logs);
                 console.log('Full logs:', JSON.stringify(logs, null, 2));
@@ -1989,7 +2020,7 @@
                 return;
             }
             try {
-                const r = await fetch("http://localhost:3000/wallet", {
+                const r = await fetch("/wallet", {
                     headers: { "Authorization": "Bearer " + token }
                 });
                 const j = await r.json();
@@ -2011,7 +2042,7 @@
             }
             try {
                 console.log('[doShowStats] Fetching stats...');
-                const r = await fetch("http://localhost:3000/auth/stats", {
+                const r = await fetch("/auth/stats", {
                     headers: { "Authorization": "Bearer " + token }
                 });
                 console.log('[doShowStats] Response status:', r.status);
@@ -2052,7 +2083,7 @@
                 return;
             }
 
-            socket = io("http://localhost:3000", { auth: { token } });
+            socket = io(window.location.origin, { auth: { token } });
 
             socket.on("connected", (m) => {
                 isProcessing.connect = false;
@@ -2072,7 +2103,7 @@
                     return;
                 }
                 if (m.ticketId) {
-                    showWaiting(t('waitingQueue'), true, 5);
+                    showWaiting(t('waitingQueue'), true, 20);  // 20 секунд на поиск
                     // Keep button disabled while in queue
                     const qpBtn2 = document.getElementById('btnQuickplay');
                     const pbt2 = document.getElementById('playBtnText');
@@ -2091,7 +2122,14 @@
 
             socket.on("queue:waiting", (m) => {
                 log(`⏳ Ожидание: ${m.seconds} сек`);
-                showWaiting(`Ищем соперников...`, true, m.seconds);
+                showWaiting(`Ищем соперников (${m.playersFound || 1}/${selectedPlayers})...`, true, m.seconds);
+            });
+
+            // Синхронизация таймера очереди (когда присоединяется новый игрок)
+            socket.on("queue:sync", (m) => {
+                log(`🔄 Синхронизация: ${m.playersFound}/${m.totalNeeded} игроков, осталось ${m.secondsLeft}сек`);
+                // Обновляем UI с синхронизированным временем
+                showWaiting(`Ищем соперников (${m.playersFound}/${m.totalNeeded})...`, true, m.secondsLeft);
             });
 
             socket.on("fallback:result", (m) => {
@@ -2112,8 +2150,98 @@
                 log(`🎮 Раунд ${data.round}, осталось игроков: ${data.aliveCount}`);
             });
 
+            // ⏱️ Таймер хода (12 секунд)
+            socket.on("match:timer", (data) => {
+                if (data.type === 'move') {
+                    startMoveCountdown(data.secondsLeft || 12);
+                }
+            });
+
+            // 🎮 МАТЧ ГОТОВ! - переходим в матч сразу
+            socket.on("match:ready", (data) => {
+                log(`🎮 Match ready: ${data.matchId.slice(0,8)}...`);
+                currentMatchId = data.matchId;
+                isProcessing.quickplay = false;
+                stopCountdown();
+                
+                // Присоединяемся к комнате матча для получения чата и обновлений
+                socket.emit("match:join", { matchId: data.matchId });
+                
+                // ❌ НЕ запрашиваем match:get здесь - ждём match:start после отсчёта!
+                // Игра откроется только после match:start
+            });
+
+            // 🎮 МАТЧ НАЙДЕН! - показываем экран с отсчётом
+            let matchCountdownInterval = null;
+            socket.on("match:found", (data) => {
+                sounds.matchFound();
+                log('🎮 МАТЧ НАЙДЕН!');
+                
+                // Показываем экран ожидания с большим таймером
+                document.getElementById('gameContent').innerHTML = `
+                    <div class="waiting">
+                        <div style="font-size: 2em; color: #ffd700; margin-bottom: 20px;">🎮 МАТЧ НАЙДЕН!</div>
+                        <div style="font-size: 4em; font-weight: bold; color: #00ff88;" id="matchCountdown">5</div>
+                        <div style="margin-top: 20px;">Приготовьтесь к игре...</div>
+                    </div>
+                `;
+                
+                // Запускаем отсчёт
+                let count = 5;
+                matchCountdownInterval = setInterval(() => {
+                    count--;
+                    const el = document.getElementById('matchCountdown');
+                    if (el) {
+                        el.textContent = count;
+                        sounds.countdown(count);
+                    }
+                    if (count <= 0) {
+                        clearInterval(matchCountdownInterval);
+                    }
+                }, 1000);
+            });
+
+            // ⏱️ Отсчёт от сервера (резерв)
+            socket.on("match:countdown", (data) => {
+                const el = document.getElementById('matchCountdown');
+                if (el) {
+                    el.textContent = data.seconds;
+                }
+                // 🔊 Звук отсчёта (чем меньше число, тем выше частота)
+                if (sounds.countdown) {
+                    sounds.countdown(data.seconds);
+                }
+            });
+
+            // 🚀 Матч начинается
+            socket.on("match:start", (m) => {
+                if (matchCountdownInterval) {
+                    clearInterval(matchCountdownInterval);
+                }
+                sounds.matchStart();
+                log('🚀 Игра началась!');
+                
+                // Рендерим матч чтобы показать таймер
+                currentMatch = m;
+                matchId = m.matchId;
+                renderMatch(m);
+                showChat();
+                createGameChat(m.matchId);
+                
+                // ⏱️ Запускаем таймер первого хода
+                const isPlayerAlive = m.aliveIds?.includes(userId);
+                const isFinished = m.status === 'FINISHED';
+                if (isPlayerAlive && !isFinished) {
+                    startMoveCountdown(12);
+                }
+            });
+
             socket.on("match:update", (m) => {
                 stopCountdown();
+                stopMoveCountdown();
+                
+                // Сбрасываем флаг обработки хода
+                isProcessing.move = false;
                 
                 // If this is a new match (different from current game chat), create new chat
                 if (m.matchId && m.matchId !== currentGameChatId) {
@@ -2124,6 +2252,9 @@
                 
                 currentMatch = m;
                 renderMatch(m);
+                
+                // ⏱️ Таймер запускается только через match:timer или match:start
+                // Не запускаем автоматически при match:update чтобы избежать конфликтов
                 
                 // 🎮 Логирование деталей раунда
                 if (m.lastRound) {
@@ -2222,6 +2353,18 @@
         }
 
         // Quickplay
+        function resetAndPlayAgain() {
+            // Clear match state
+            currentMatch = null;
+            matchId = null;
+            currentGameChatId = null;
+            stopMoveCountdown();
+            stopCountdown();
+            
+            // Start new game
+            doQuickplay();
+        }
+
         function doQuickplay() {
             if (isProcessing.quickplay) {
                 sounds.error();
@@ -2242,18 +2385,34 @@
 
         // Make Move
         function makeMove(move) {
+            // ⏱️ Останавливаем таймер - ход сделан
+            stopMoveCountdown();
+            
+            // ❌ Не даём выбитым игрокам ходить
+            if (currentMatch && !currentMatch.aliveIds?.includes(userId)) {
+                log('❌ Вы выбыли из матча');
+                return;
+            }
+            
             if (isProcessing.move) {
                 sounds.error();
+                return;
+            }
+            // Проверяем, не сделали ли уже ход в этом раунде
+            if (currentMatch && currentMatch.moves && currentMatch.moves[userId]) {
+                log('⚠️ Вы уже сделали ход в этом раунде');
                 return;
             }
             isProcessing.move = true;
             sounds.move();
             
             if (!socket || !matchId) {
-                log('❌ Нет активного матча');
+                log('❌ Нет активного матча (socket: ' + !!socket + ', matchId: ' + matchId + ')');
                 isProcessing.move = false;
                 return;
             }
+            
+            console.log('[makeMove] Sending move:', { matchId, move, userId });
             
             // Disable all move buttons
             document.querySelectorAll('.move-btn').forEach(btn => {
@@ -2308,6 +2467,61 @@
             }
         }
 
+        // ⏱️ Таймер для хода (12 секунд)
+        let moveCountdownInterval = null;
+        function startMoveCountdown(seconds) {
+            // ❌ Не запускаем таймер если игрок выбыл
+            if (currentMatch && !currentMatch.aliveIds?.includes(userId)) {
+                console.log('[startMoveCountdown] Skipped - player eliminated');
+                return;
+            }
+            
+            if (moveCountdownInterval) clearInterval(moveCountdownInterval);
+            let remaining = seconds;
+            
+            const updateTimer = () => {
+                const timerEl = document.getElementById('moveTimer');
+                if (timerEl) {
+                    timerEl.textContent = remaining + 's';
+                    // Меняем цвет когда мало времени
+                    if (remaining <= 3) {
+                        timerEl.style.color = '#ff4444';
+                    } else if (remaining <= 6) {
+                        timerEl.style.color = '#ffaa00';
+                    } else {
+                        timerEl.style.color = '#00ff88';
+                    }
+                }
+                remaining--;
+                if (remaining < 0) {
+                    clearInterval(moveCountdownInterval);
+                    if (timerEl) timerEl.textContent = '⏱️';
+                    // ⏱️ Авто-ход при таймауте (только если игрок жив и ход не сделан)
+                    const isPlayerAlive = currentMatch?.aliveIds?.includes(userId);
+                    if (isPlayerAlive && currentMatch && !currentMatch.moves?.[userId]) {
+                        const moves = ['ROCK', 'PAPER', 'SCISSORS'];
+                        const randomMove = moves[Math.floor(Math.random() * moves.length)];
+                        log('⏱️ Время вышло! Авто-ход: ' + randomMove);
+                        makeMove(randomMove);
+                    } else if (!isPlayerAlive) {
+                        console.log('[AutoMove] Skipped - player eliminated');
+                    } else {
+                        console.log('[AutoMove] Skipped - move already made');
+                    }
+                }
+            };
+            
+            updateTimer();
+            moveCountdownInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopMoveCountdown() {
+            if (moveCountdownInterval) {
+                clearInterval(moveCountdownInterval);
+                moveCountdownInterval = null;
+            }
+        }
+
         // Render Functions
         function showWaiting(text, withCountdown = false, seconds = 0) {
             let countdownHtml = '';
@@ -2344,6 +2558,9 @@
             let html = `
                 <div class="game-status">
                     <div class="status-text">${statusText}</div>
+                    ${!isFinished && isPlayerAlive ? `
+                    <div class="move-timer" id="moveTimer" style="font-size: 2em; font-weight: bold; margin: 10px 0; color: #00ff88;">12s</div>
+                    ` : ''}
                     <div class="match-info">
                         <div class="info-item">
                             <div class="info-label">${t('round')}</div>
@@ -2433,7 +2650,7 @@
             if (isFinished) {
                 html += `
                     <div style="text-align: center; margin-top: 30px;">
-                        <button class="btn btn-success" onclick="doQuickplay()">${t('playAgain')}</button>
+                        <button class="btn btn-success" onclick="resetAndPlayAgain()">${t('playAgain')}</button>
                     </div>
                 `;
                 // Add system message to game chat
@@ -2444,6 +2661,9 @@
                 
                 // Update balance after match
                 setTimeout(doCheckBalance, 500);
+                
+                // Clear current match state
+                currentMatch = null;
             }
 
             document.getElementById('gameContent').innerHTML = html;
