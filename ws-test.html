@@ -415,6 +415,15 @@
             color: #ffd700;
         }
 
+        /* Game Controls Row */
+        .game-controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+        }
+
         /* Dropdown Play Button */
         .dropdown-play {
             position: relative;
@@ -422,27 +431,29 @@
             align-items: center;
         }
 
-        .btn-play-main {
+        .btn-play-main, .btn-stake-main {
             border-radius: 12px 0 0 12px;
-            padding-right: 10px;
+            padding-right: 8px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
+            white-space: nowrap;
         }
 
-        .btn-play-arrow {
+        .btn-play-arrow, .btn-stake-arrow {
             border-radius: 0 12px 12px 0;
-            padding: 12px 15px;
+            padding: 12px 10px;
             margin-left: 2px;
-            font-size: 0.8em;
+            font-size: 0.7em;
+            min-width: 32px;
             transition: transform 0.3s ease;
         }
 
-        .btn-play-arrow:hover {
+        .btn-play-arrow:hover, .btn-stake-arrow:hover {
             transform: translateY(-2px);
         }
 
-        .btn-play-arrow.active {
+        .btn-play-arrow.active, .btn-stake-arrow.active {
             background: rgba(255,215,0,0.5);
         }
 
@@ -450,8 +461,115 @@
             background: rgba(255,215,0,0.8);
             color: #1e3c72;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 22px;
+            height: 22px;
+            font-size: 0.85em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        /* Stats Modal */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+
+        .winrate-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .winrate-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80, #ffd700);
+            transition: width 0.5s ease;
+        }
+
+        .public-profile {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .profile-avatar-large {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin: 0 auto 15px;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5em;
+        }
+
+        .public-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .public-stat {
+            text-align: center;
+        }
+
+        .public-stat-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .public-stat-label {
+            font-size: 0.75em;
+            opacity: 0.7;
+            margin-top: 3px;
+        }
+
+        .chat-author-clickable {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .chat-author-clickable:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+
+        .player-count-badge {
+            background: rgba(255,215,0,0.8);
+            color: #1e3c72;
+            border-radius: 50%;
+            width: 22px;
+            height: 22px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -792,6 +910,34 @@
             color: rgba(255,255,255,0.5);
         }
 
+        /* Password field with toggle */
+        .password-field {
+            position: relative;
+        }
+        
+        .password-field input {
+            width: 100%;
+            padding-right: 40px;
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2em;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            padding: 5px;
+        }
+        
+        .password-toggle:hover {
+            opacity: 1;
+        }
+
         .btn-full {
             width: 100%;
             padding: 15px;
@@ -990,9 +1136,9 @@
         <div class="controls" id="authControls">
             <!-- Not logged in -->
             <div class="auth-buttons" id="authButtons">
-                <button class="btn btn-success" onclick="showLoginModal()">🔑 Войти</button>
-                <button class="btn btn-primary" onclick="showRegisterModal()">📝 Регистрация</button>
-                <button class="btn btn-secondary" onclick="doGuest()">👤 Guest</button>
+                <button class="btn btn-success" onclick="showLoginModal()">🔑 <span id="btnLoginText">Войти</span></button>
+                <button class="btn btn-primary" onclick="showRegisterModal()">📝 <span id="btnRegisterText">Регистрация</span></button>
+                <button class="btn btn-secondary" id="btnGuest" onclick="doGuest()">👤 <span id="btnGuestText">Гость</span></button>
             </div>
             
             <!-- Logged in -->
@@ -1005,13 +1151,15 @@
             
             <button class="btn btn-primary" id="btnConnect" onclick="doConnect()" disabled>🔗 Подключиться</button>
             
-            <!-- Dropdown Play Button -->
+            <!-- Game Controls Row -->
+            <div class="game-controls-row" id="gameControlsRow">
+                <!-- Play Button with Player Count -->
             <div class="dropdown-play" id="dropdownPlay">
                 <button class="btn btn-primary btn-play-main" id="btnQuickplay" onclick="doQuickplay()" disabled>
                     🎮 <span id="playBtnText">Играть 2 | 100 VP</span> <span class="player-count-badge" id="playerBadge">2</span>
                 </button>
                 <button class="btn btn-primary btn-play-arrow" id="btnPlayArrow" onclick="togglePlayerDropdown()" disabled>
-                    ▲
+                    ▼
                 </button>
                 <div class="dropdown-menu" id="playerDropdown">
                     <div class="dropdown-item" onclick="selectPlayersDropdown(2)">
@@ -1035,11 +1183,11 @@
             
             <!-- Stake Selection Dropdown -->
             <div class="dropdown-play" id="dropdownStake" style="margin-left: 8px;">
-                <button class="btn btn-primary btn-play-main" id="btnStake" onclick="toggleStakeDropdown()" disabled>
+                <button class="btn btn-primary btn-stake-main" id="btnStake" onclick="toggleStakeDropdown()" disabled>
                     💰 <span id="stakeBtnText">100</span> VP
                 </button>
-                <button class="btn btn-primary btn-play-arrow" id="btnStakeArrow" onclick="toggleStakeDropdown()" disabled>
-                    ▲
+                <button class="btn btn-primary btn-stake-arrow" id="btnStakeArrow" onclick="toggleStakeDropdown()" disabled>
+                    ▼
                 </button>
                 <div class="dropdown-menu" id="stakeDropdown">
                     <div class="dropdown-item stake-item" onclick="selectStakeDropdown(100)">
@@ -1074,8 +1222,11 @@
             </div>
             
             <button class="btn btn-primary" id="btnBalance" onclick="doCheckBalance()" disabled>💳 Баланс</button>
-            <button class="btn btn-primary" id="btnStats" onclick="doShowStats()" disabled>📊 Статистика</button>
-            <button class="btn btn-primary" id="btnLogs" onclick="showLogsInChat()" disabled>📋 Логи</button>
+            <button class="btn btn-primary" id="btnStats" onclick="showStatsModal()" disabled>📊 Статистика</button>
+                <button class="btn btn-primary" id="btnLogs" onclick="showLogsInChat()" disabled>📋 Логи</button>
+                <button class="btn btn-secondary" id="btnAudit" onclick="showAuditModal()" disabled>📜 Audit</button>
+                <button class="btn btn-secondary" id="btnReconcile" onclick="showReconcileModal()" disabled>⚖️ Сверка</button>
+            </div>
         </div>
 
         <!-- Game Area -->
@@ -1110,7 +1261,7 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         // API Config
-        const API_URL = ''; // Пусто для относительных путей (работает и localhost и ngrok)
+        const API_URL = window.location.origin; // Полный URL для ngrok и localhost
         
         // Game State
         let token = "";
@@ -1119,7 +1270,12 @@
         let socket = null;
         let soundEnabled = true;
         let currentMatch = null;
+        const activeMatches = new Set();  // 🛡️ Отслеживаем ВСЕ активные матчи
         let countdownInterval = null;
+        let matchCountdownInterval = null;  // 🎮 Отсчёт перед матчем
+        let playerNames = {};  // 👤 Хранилище ID -> displayName
+        let shownRounds = new Set();  // 🛡️ Дедупликация раундов в чате
+        let shownMoveWarningForRound = null;  // 🛡️ Debounce для "уже сделали ход"
         let isProcessing = {
             guest: false,
             connect: false,
@@ -1176,7 +1332,8 @@
                 login: 'Войти',
                 register: 'Регистрация',
                 logout: 'Выйти',
-                guest: 'Guest'
+                guest: 'Гость',
+                statsBtn: '📊 Статистика'
             },
             en: {
                 title: 'WagerPlay - Rock Paper Scissors',
@@ -1223,7 +1380,8 @@
                 login: 'Login',
                 register: 'Register',
                 logout: 'Logout',
-                guest: 'Guest'
+                guest: 'Guest',
+                statsBtn: '📊 Stats'
             },
             cn: {
                 title: 'WagerPlay - 石头剪刀布',
@@ -1270,7 +1428,8 @@
                 login: '登录',
                 register: '注册',
                 logout: '退出',
-                guest: '游客'
+                guest: '游客',
+                statsBtn: '📊 统计'
             }
         };
 
@@ -1287,7 +1446,13 @@
             const subtitle = document.querySelector('.subtitle');
             const balanceLabel = document.querySelector('.balance-label');
             
-            if (btnGuest) btnGuest.textContent = t('guest');
+            const btnLoginText = document.getElementById('btnLoginText');
+            const btnRegisterText = document.getElementById('btnRegisterText');
+            const btnGuestText = document.getElementById('btnGuestText');
+            
+            if (btnLoginText) btnLoginText.textContent = t('login');
+            if (btnRegisterText) btnRegisterText.textContent = t('register');
+            if (btnGuestText) btnGuestText.textContent = t('guest');
             if (btnConnect) btnConnect.textContent = t('connect');
             if (playBtnText) playBtnText.textContent = t('quickplay');
             if (btnBalance) btnBalance.textContent = t('balanceBtn');
@@ -1536,12 +1701,12 @@
             sounds.click();
         }
 
-        function addChatMessage(type, author, text, tab, gameId = null) {
+        function addChatMessage(type, author, text, tab, gameId = null, avatarUrl = null) {
             if (!window.chatHistory) window.chatHistory = { global: [] };
             if (!window.chatHistory.games) window.chatHistory.games = {};
             
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const message = { type, author, text, time };
+            const message = { type, author, text, time, avatarUrl };
             
             if (tab === 'global') {
                 window.chatHistory.global.push(message);
@@ -1578,22 +1743,27 @@
                     messageEl.textContent = msg.text;
                 } else {
                     // Determine avatar and display name
-                    let avatarSrc = `${API_URL}/avatars/male1.svg`; // default
+                    let avatarSrc = msg.avatarUrl || `${API_URL}/avatars/male1.svg`; // default or from message
                     let displayAuthor = msg.author;
                     
                     // If message is from current user, show their display name and avatar
-                    if (msg.author === userId.slice(0,8) || msg.author === currentProfile.displayName) {
+                    const isCurrentUser = msg.author === userId.slice(0,8) || msg.author === currentProfile.displayName;
+                    if (isCurrentUser) {
                         displayAuthor = currentProfile.displayName || msg.author;
                         if (currentProfile.avatarUrl) {
                             avatarSrc = currentProfile.avatarUrl;
                         }
                     }
                     
+                    // Make author name clickable if not current user
+                    const authorClass = isCurrentUser ? 'chat-author' : 'chat-author chat-author-clickable';
+                    const authorClick = isCurrentUser ? '' : `onclick="showPublicProfile('${msg.author}', '${displayAuthor}')"`;
+                    
                     messageEl.innerHTML = `
                         <div style="display: flex; gap: 8px; align-items: flex-start;">
-                            <img src="${avatarSrc}" style="width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;">
+                            <img src="${avatarSrc}" style="width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; cursor: ${isCurrentUser ? 'default' : 'pointer'};" ${authorClick}>
                             <div style="flex: 1;">
-                                <div class="chat-author">${displayAuthor} <span class="chat-time">${msg.time}</span></div>
+                                <div class="${authorClass}" ${authorClick}>${displayAuthor} <span class="chat-time">${msg.time}</span></div>
                                 <div>${escapeHtml(msg.text)}</div>
                             </div>
                         </div>
@@ -1644,6 +1814,57 @@
             }
         }
 
+        // Global Enter handler for modals
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                // Check which modal is open
+                const loginModal = document.getElementById('loginModal');
+                const registerModal = document.getElementById('registerModal');
+                const forgotModal = document.getElementById('forgotModal');
+                
+                if (loginModal && loginModal.classList.contains('show')) {
+                    event.preventDefault();
+                    doLogin();
+                } else if (registerModal && registerModal.classList.contains('show')) {
+                    event.preventDefault();
+                    doRegister();
+                } else if (forgotModal && forgotModal.classList.contains('show')) {
+                    event.preventDefault();
+                    doForgotPassword();
+                }
+            }
+        });
+
+        // Password toggle function
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                btn.textContent = '👁️';
+            }
+        }
+
+        // Enter key handler
+        function handleEnter(event, action) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                switch(action) {
+                    case 'login':
+                        doLogin();
+                        break;
+                    case 'register':
+                        doRegister();
+                        break;
+                    case 'linkEmail':
+                        linkEmail();
+                        break;
+                }
+            }
+        }
+
         // Auth API functions
         async function doLogin() {
             const email = document.getElementById('loginEmail').value.trim();
@@ -1675,7 +1896,7 @@
                     hideLoginModal();
                     showUserInfo(data.email || data.username);
                     log(`✅ Вход выполнен: ${data.email || data.username}`);
-                    setButtons({ guest: false, connect: true, quickplay: false, balance: true, logs: false });
+                    setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: true, logs: false });
                     
                     // Загружаем полный профиль с аватаркой
                     await loadProfile();
@@ -1783,13 +2004,15 @@
             }
             document.getElementById('authButtons').classList.remove('hidden');
             document.getElementById('userInfo').classList.add('hidden');
-            setButtons({ guest: true, connect: false, quickplay: false, balance: false, logs: false });
+            setButtons({ showAuth: true, showUser: false, showConnect: false, connect: false, quickplay: false, balance: false, logs: false });
             log('👋 Выход выполнен');
             sounds.click();
         }
 
         // Initialize on load
         window.onload = function() {
+            // Initialize button states - show auth buttons, hide others
+            setButtons({ showAuth: true, showUser: false, showConnect: false, connect: false, quickplay: false, balance: false, logs: false });
             setLang('ru');
             // Initialize chat history structure
             window.chatHistory = { global: [], games: {} };
@@ -1808,6 +2031,11 @@
             }
             // Initialize dropdown selection
             updateDropdownSelection(2);
+            // Close all dropdowns
+            document.getElementById('playerDropdown').classList.remove('show');
+            document.getElementById('stakeDropdown').classList.remove('show');
+            document.getElementById('btnPlayArrow').classList.remove('active');
+            document.getElementById('btnStakeArrow').classList.remove('active');
         };
 
         // Audio Context for sounds
@@ -1959,25 +2187,87 @@
         }
 
         function setButtons(state) {
-            const btnGuest = document.getElementById('btnGuest');
+            const authButtons = document.getElementById('authButtons');
+            const userInfo = document.getElementById('userInfo');
             const btnConnect = document.getElementById('btnConnect');
+            const dropdownPlay = document.getElementById('dropdownPlay');
+            const dropdownStake = document.getElementById('dropdownStake');
             const btnQuickplay = document.getElementById('btnQuickplay');
             const btnPlayArrow = document.getElementById('btnPlayArrow');
-            const btnBalance = document.getElementById('btnBalance');
-            const btnLogs = document.getElementById('btnLogs');
-            
-            if (btnGuest) btnGuest.disabled = !state.guest;
-            if (btnConnect) btnConnect.disabled = !state.connect;
-            if (btnQuickplay) btnQuickplay.disabled = !state.quickplay;
-            if (btnPlayArrow) btnPlayArrow.disabled = !state.quickplay;
             const btnStake = document.getElementById('btnStake');
             const btnStakeArrow = document.getElementById('btnStakeArrow');
-            if (btnStake) btnStake.disabled = !state.quickplay;
-            if (btnStakeArrow) btnStakeArrow.disabled = !state.quickplay;
+            const btnBalance = document.getElementById('btnBalance');
             const btnStats = document.getElementById('btnStats');
-            if (btnBalance) btnBalance.disabled = !state.balance;
-            if (btnStats) btnStats.disabled = !state.balance;
-            if (btnLogs) btnLogs.disabled = !state.logs;
+            const btnLogs = document.getElementById('btnLogs');
+            const btnAudit = document.getElementById('btnAudit');
+            const btnReconcile = document.getElementById('btnReconcile');
+            const balanceCard = document.querySelector('.balance-card');
+            
+            // Phase 1: Auth (Login/Register/Guest visible)
+            if (authButtons) authButtons.style.display = state.showAuth ? 'flex' : 'none';
+            if (userInfo) userInfo.style.display = state.showUser ? 'flex' : 'none';
+            
+            // Phase 2: Connect (after login) - show Connect button, hide game buttons
+            if (btnConnect) {
+                btnConnect.style.display = state.showConnect ? 'inline-block' : 'none';
+                btnConnect.disabled = !state.connect;
+            }
+            
+            // Game controls row - show only after connect
+            const gameControlsRow = document.getElementById('gameControlsRow');
+            if (gameControlsRow) {
+                gameControlsRow.style.display = state.quickplay ? 'flex' : 'none';
+                gameControlsRow.style.flexWrap = 'wrap';
+            }
+            
+            // Enable/disable game buttons
+            // 🛡️ Блокируем кнопки ставки и игры если идет поиск (isProcessing.quickplay) ИЛИ уже в матче (activeMatches)
+            const isInMatch = activeMatches.size > 0;
+            const isSearching = isProcessing.quickplay || isInMatch;
+            console.log('[setButtons] isProcessing.quickplay:', isProcessing.quickplay, 'activeMatches:', Array.from(activeMatches), 'isInMatch:', isInMatch, 'isSearching:', isSearching);
+            if (btnQuickplay) btnQuickplay.disabled = !state.quickplay || isSearching;
+            if (btnPlayArrow) btnPlayArrow.disabled = !state.quickplay || isSearching;
+            if (btnStake) btnStake.disabled = !state.quickplay || isSearching;
+            if (btnStakeArrow) btnStakeArrow.disabled = !state.quickplay || isSearching;
+            // 🛡️ Визуально показываем что кнопки заблокированы
+            if (btnQuickplay) btnQuickplay.style.opacity = isSearching ? '0.5' : '1';
+            if (btnStake) btnStake.style.opacity = isSearching ? '0.5' : '1';
+            if (btnBalance) {
+                btnBalance.style.display = state.quickplay ? 'inline-block' : 'none';
+                btnBalance.disabled = !state.balance;
+            }
+            if (btnStats) {
+                btnStats.style.display = state.quickplay ? 'inline-block' : 'none';
+                btnStats.disabled = !state.balance;
+            }
+            if (btnLogs) {
+                btnLogs.style.display = state.quickplay ? 'inline-block' : 'none';
+                btnLogs.disabled = !state.logs;
+            }
+            if (btnAudit) {
+                btnAudit.style.display = state.quickplay ? 'inline-block' : 'none';
+                btnAudit.disabled = !state.balance;
+            }
+            if (btnReconcile) {
+                btnReconcile.style.display = state.quickplay ? 'inline-block' : 'none';
+                btnReconcile.disabled = !state.balance;
+            }
+            
+            // Show balance card only after login
+            if (balanceCard) balanceCard.style.display = (state.showUser || state.showConnect || state.quickplay) ? 'block' : 'none';
+        }
+        
+        function updateWaitingText() {
+            const waitingText = document.getElementById('waitingText');
+            if (!waitingText) return;
+            
+            if (!token) {
+                waitingText.textContent = t('waitingGuest');
+            } else if (!socket) {
+                waitingText.textContent = t('connect') + ' →';
+            } else {
+                waitingText.textContent = t('waitingQueue');
+            }
         }
 
         // Guest Login
@@ -2002,8 +2292,9 @@
                 };
                 updateBalanceDisplay(j.balanceWp);
                 log(`✅ Guest login: ${userId.slice(0,8)}...`);
-                setButtons({ guest: false, connect: true, quickplay: false, balance: true, logs: false });
+                setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: true, logs: false });
                 updateUserInfoAfterLogin();
+                updateWaitingText();
                 doCheckBalance();
             } catch (e) {
                 log(`❌ Guest error: ${e.message}`);
@@ -2083,13 +2374,29 @@
                 return;
             }
 
-            socket = io(window.location.origin, { auth: { token } });
+            socket = io(window.location.origin, { 
+                auth: { 
+                    token,
+                    displayName: currentProfile.displayName || ''
+                } 
+            });
 
             socket.on("connected", (m) => {
                 isProcessing.connect = false;
                 log(`🔗 WebSocket подключен: ${m.userId.slice(0,8)}...`);
-                setButtons({ guest: false, connect: false, quickplay: true, balance: true, logs: true });
+                // 🛡️ Не разблокируем кнопки если игрок уже в матче
+                if (activeMatches.size === 0) {
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                }
                 sounds.matchStart();
+            });
+
+            socket.on("matches:cleanup", (data) => {
+                log(`💰 Возвращено ${data.returnedVp} VP из зависших матчей`);
+                if (data.returnedVp > 0) {
+                    alert(`✅ Возвращено ${data.returnedVp} VP из зависших матчей`);
+                    loadBalance(); // Обновляем баланс
+                }
             });
 
             socket.on("quickplay:result", (m) => {
@@ -2097,8 +2404,7 @@
                 if (m.status === 'ALREADY_IN_QUEUE') {
                     log('⚠️ Already in queue!');
                     isProcessing.quickplay = false;
-                    const qpBtn1 = document.getElementById('btnQuickplay');
-                    if (qpBtn1) qpBtn1.disabled = false;
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     showWaiting(t('waitingQueue'), true, 5);
                     return;
                 }
@@ -2113,6 +2419,7 @@
                 if (m.matchId) {
                     matchId = m.matchId;
                     isProcessing.quickplay = false;
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     // Reset button text
                     const pbt5 = document.getElementById('playBtnText');
                     const stakeText = selectedStake >= 1000 ? (selectedStake/1000) + 'K' : selectedStake;
@@ -2136,6 +2443,7 @@
                 stopCountdown();
                 log(`🤖 Fallback: ${m.status}`);
                 isProcessing.quickplay = false;
+                setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 const pbt6 = document.getElementById('playBtnText');
                 if (pbt6) pbt6.textContent = t('quickplay');
                 if (m.matchId) {
@@ -2152,16 +2460,39 @@
 
             // ⏱️ Таймер хода (12 секунд)
             socket.on("match:timer", (data) => {
-                if (data.type === 'move') {
-                    startMoveCountdown(data.secondsLeft || 12);
+                console.log('[CLIENT match:timer]', data);
+                if (data.type === 'move' && data.deadline) {
+                    // 🛡️ Защита от устаревших событий: если раунд в событии меньше текущего, игнорируем
+                    if (data.round && currentMatch && data.round < currentMatch.round) {
+                        console.log('[CLIENT match:timer] Skipping old timer for round', data.round, '(current:', currentMatch.round, ')');
+                        return;
+                    }
+                    
+                    // 🛡️ Защита от дублирования: если таймер уже запущен для этого же раунда
+                    if (data.round && currentTimerRound === data.round && moveCountdownInterval) {
+                        console.log('[CLIENT match:timer] Timer already running for round', data.round);
+                        return;
+                    }
+                    
+                    // Вычисляем secondsLeft на клиенте по deadline (более точно)
+                    const now = Date.now();
+                    const secondsLeft = Math.max(0, Math.ceil((data.deadline - now) / 1000));
+                    console.log('[CLIENT match:timer] Calculated secondsLeft:', secondsLeft, 'round from server:', data.round);
+                    
+                    // Используем раунд из события (теперь сервер всегда отправляет round)
+                    const targetRound = data.round || currentMatch?.round;
+                    
+                    startMoveCountdown(secondsLeft, targetRound, data.deadline);
                 }
             });
 
             // 🎮 МАТЧ ГОТОВ! - переходим в матч сразу
             socket.on("match:ready", (data) => {
                 log(`🎮 Match ready: ${data.matchId.slice(0,8)}...`);
-                currentMatchId = data.matchId;
+                activeMatches.add(data.matchId);  // 🛡️ Добавляем матч в активные
+                console.log('[match:ready] Added to activeMatches:', data.matchId, 'Size:', activeMatches.size);
                 isProcessing.quickplay = false;
+                setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 stopCountdown();
                 
                 // Присоединяемся к комнате матча для получения чата и обновлений
@@ -2172,10 +2503,20 @@
             });
 
             // 🎮 МАТЧ НАЙДЕН! - показываем экран с отсчётом
-            let matchCountdownInterval = null;
             socket.on("match:found", (data) => {
+                // 🧹 Очищаем старый отсчёт если есть
+                if (matchCountdownInterval) {
+                    clearInterval(matchCountdownInterval);
+                    matchCountdownInterval = null;
+                }
+                
                 sounds.matchFound();
                 log('🎮 МАТЧ НАЙДЕН!');
+                
+                // 🛡️ Блокируем кнопки сразу при найденном матче (до match:start)
+                activeMatches.add(data.matchId);
+                console.log('[match:found] Added to activeMatches:', data.matchId, 'Size:', activeMatches.size);
+                setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 
                 // Показываем экран ожидания с большим таймером
                 document.getElementById('gameContent').innerHTML = `
@@ -2197,6 +2538,7 @@
                     }
                     if (count <= 0) {
                         clearInterval(matchCountdownInterval);
+                        matchCountdownInterval = null;
                     }
                 }, 1000);
             });
@@ -2215,33 +2557,61 @@
 
             // 🚀 Матч начинается
             socket.on("match:start", (m) => {
+                console.log('[CLIENT match:start]', {matchId: m.matchId, round: m.round, deadline: m.moveDeadline});
                 if (matchCountdownInterval) {
                     clearInterval(matchCountdownInterval);
                 }
                 sounds.matchStart();
-                log('🚀 Игра началась!');
+                log('🚀 Игра началась! (match:start)');
+                
+                // 🛡️ Добавляем матч в активные (если еще не добавлен в match:ready)
+                activeMatches.add(m.matchId);
+                console.log('[match:start] Added to activeMatches:', m.matchId, 'Size:', activeMatches.size);
+                
+                // 🛡️ Блокируем кнопки сразу при начале матча
+                setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                
+                // 🧹 Сбрасываем дедупликацию раундов и таймер для нового матча
+                shownRounds.clear();
+                shownMoveWarningForRound = null;  // 🛡️ Сбрасываем флаг警告
+                currentTimerRound = null;
+                currentTimerDeadline = null;
+                resetAutoMoveFlag();  // 🛡️ Сбрасываем флаг автохода
+                console.log('[match:start] Cleared shownRounds, timers, and autoMove flag');
                 
                 // Рендерим матч чтобы показать таймер
                 currentMatch = m;
                 matchId = m.matchId;
+                // 👤 Сохраняем имена игроков из матча
+                if (m.playerNames) {
+                    Object.assign(playerNames, m.playerNames);
+                }
                 renderMatch(m);
                 showChat();
                 createGameChat(m.matchId);
                 
-                // ⏱️ Запускаем таймер первого хода
-                const isPlayerAlive = m.aliveIds?.includes(userId);
-                const isFinished = m.status === 'FINISHED';
-                if (isPlayerAlive && !isFinished) {
-                    startMoveCountdown(12);
+                // ⏱️ Запускаем таймер если есть deadline
+                if (m.moveDeadline) {
+                    const now = Date.now();
+                    const deadline = m.moveDeadline;
+                    const secondsLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
+                    console.log('[match:start] Starting timer with secondsLeft:', secondsLeft, 'for round', m.round);
+                    if (secondsLeft > 0) {
+                        startMoveCountdown(secondsLeft, m.round, deadline);
+                    }
                 }
             });
 
             socket.on("match:update", (m) => {
+                console.log('[CLIENT match:update]', {matchId: m.matchId, round: m.round, status: m.status, deadline: m.moveDeadline});
                 stopCountdown();
-                stopMoveCountdown();
+                // 🛡️ НЕ останавливаем moveCountdown здесь - пусть работает пока не придет match:timer с новым раундом
+                // stopMoveCountdown();  // <-- УБРАНО
                 
                 // Сбрасываем флаг обработки хода
                 isProcessing.move = false;
+                
+                // ⏱️ НЕ запускаем таймер здесь - только через match:start или match:timer
                 
                 // If this is a new match (different from current game chat), create new chat
                 if (m.matchId && m.matchId !== currentGameChatId) {
@@ -2251,6 +2621,10 @@
                 }
                 
                 currentMatch = m;
+                // 👤 Сохраняем имена игроков из матча
+                if (m.playerNames) {
+                    Object.assign(playerNames, m.playerNames);
+                }
                 renderMatch(m);
                 
                 // ⏱️ Таймер запускается только через match:timer или match:start
@@ -2259,10 +2633,19 @@
                 // 🎮 Логирование деталей раунда
                 if (m.lastRound) {
                     const lr = m.lastRound;
-                    const moveEmoji = { 'ROCK': '✊', 'PAPER': '✋', 'SCISSORS': '✌️' };
+                    const roundKey = `${m.matchId}:${lr.roundNo}`;
                     
-                    // Заголовок раунда
-                    log(`📢 РАУНД ${lr.roundNo}`);
+                    // 🛡️ Дедупликация: пропускаем если уже показывали этот раунд
+                    if (shownRounds.has(roundKey)) {
+                        console.log(`[match:update] Skipping duplicate round ${lr.roundNo}`);
+                    } else {
+                        shownRounds.add(roundKey);
+                        console.log(`[match:update] Showing round ${lr.roundNo} for first time`);
+                        
+                        const moveEmoji = { 'ROCK': '✊', 'PAPER': '✋', 'SCISSORS': '✌️' };
+                        
+                        // Заголовок раунда
+                        log(`📢 РАУНД ${lr.roundNo}`);
                     
                     // Ходы всех игроков
                     if (lr.moves) {
@@ -2293,8 +2676,9 @@
                         });
                     }
                     
-                    log(`👥 Осталось игроков: ${m.aliveIds?.length || 0}`);
-                }
+                        log(`👥 Осталось игроков: ${m.aliveIds?.length || 0}`);
+                    } // end of else (new round)
+                } // end of if (m.lastRound)
                 
                 // Reset move processing flag when match updates
                 isProcessing.move = false;
@@ -2308,9 +2692,11 @@
                 // If match is finished, schedule chat close and reset quickplay button
                 if (m.status === 'FINISHED') {
                     isProcessing.quickplay = false;
+                    activeMatches.delete(m.matchId);  // 🛡️ Удаляем завершенный матч из активных
+                    console.log('[match:update FINISHED] Removed from activeMatches:', m.matchId, 'Size:', activeMatches.size);
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     const qpBtn3 = document.getElementById('btnQuickplay');
                     const pbt3 = document.getElementById('playBtnText');
-                    if (qpBtn3) qpBtn3.disabled = false;
                     if (pbt3) pbt3.textContent = t('playAgain');
                     
                     // Schedule this specific game chat to close after 2 minutes
@@ -2329,23 +2715,33 @@
             });
 
             socket.on("chat:global", (data) => {
-                addChatMessage('user', data.author?.slice(0,8) || 'Unknown', data.text, 'global');
+                const displayName = data.displayName || data.author?.slice(0,8) || 'Unknown';
+                // 👤 Сохраняем имя игрока
+                if (data.author && data.displayName) {
+                    playerNames[data.author] = data.displayName;
+                }
+                addChatMessage('user', displayName, data.text, 'global', null, data.avatarUrl);
             });
 
             socket.on("chat:game", (data) => {
                 // Add to specific game chat if matchId provided
                 const targetGameId = data.matchId || currentGameChatId;
                 if (targetGameId) {
-                    addChatMessage('user', data.author?.slice(0,8) || 'Unknown', data.text, 'game', targetGameId);
+                    const displayName = data.displayName || data.author?.slice(0,8) || 'Unknown';
+                    // 👤 Сохраняем имя игрока
+                    if (data.author && data.displayName) {
+                        playerNames[data.author] = data.displayName;
+                    }
+                    addChatMessage('user', displayName, data.text, 'game', targetGameId, data.avatarUrl);
                 }
             });
 
             socket.on("error", (m) => {
                 isProcessing.move = false;
                 isProcessing.quickplay = false;
+                setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 const qpBtn4 = document.getElementById('btnQuickplay');
                 const pbt4 = document.getElementById('playBtnText');
-                if (qpBtn4) qpBtn4.disabled = false;
                 const stakeText = selectedStake >= 1000 ? (selectedStake/1000) + 'K' : selectedStake;
                 if (pbt4) pbt4.textContent = `Играть ${selectedPlayers} | ${stakeText} VP`;
                 log(`❌ Error: ${m.message}`);
@@ -2373,9 +2769,13 @@
             isProcessing.quickplay = true;
             sounds.click();
             
+            // 🛡️ Обновляем UI чтобы заблокировать кнопки
+            setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+            
             if (!socket) {
                 log('❌ Сначала подключитесь');
                 isProcessing.quickplay = false;
+                setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 return;
             }
             socket.emit("quickplay", { playersCount: selectedPlayers, stakeVp: selectedStake });
@@ -2385,9 +2785,6 @@
 
         // Make Move
         function makeMove(move) {
-            // ⏱️ Останавливаем таймер - ход сделан
-            stopMoveCountdown();
-            
             // ❌ Не даём выбитым игрокам ходить
             if (currentMatch && !currentMatch.aliveIds?.includes(userId)) {
                 log('❌ Вы выбыли из матча');
@@ -2398,11 +2795,26 @@
                 sounds.error();
                 return;
             }
-            // Проверяем, не сделали ли уже ход в этом раунде
+            // Проверяем, не сделали ли уже ход в этом раунде (🛡️ debounce - показываем警告 только раз за раунд)
             if (currentMatch && currentMatch.moves && currentMatch.moves[userId]) {
-                log('⚠️ Вы уже сделали ход в этом раунде');
+                const roundKey = `${currentMatch.matchId}:${currentMatch.round}`;
+                if (!shownMoveWarningForRound || shownMoveWarningForRound !== roundKey) {
+                    shownMoveWarningForRound = roundKey;
+                    log('⚠️ Вы уже сделали ход в этом раунде');
+                }
                 return;
             }
+            // Сбрасываем флаг警告 при новом раунде
+            if (currentMatch) {
+                const roundKey = `${currentMatch.matchId}:${currentMatch.round}`;
+                if (shownMoveWarningForRound && shownMoveWarningForRound !== roundKey) {
+                    shownMoveWarningForRound = null;
+                }
+            }
+            
+            // 🛡️ Останавливаем таймер ТОЛЬКО если ход действительно будет отправлен
+            stopMoveCountdown();
+            
             isProcessing.move = true;
             sounds.move();
             
@@ -2469,50 +2881,118 @@
 
         // ⏱️ Таймер для хода (12 секунд)
         let moveCountdownInterval = null;
-        function startMoveCountdown(seconds) {
-            // ❌ Не запускаем таймер если игрок выбыл
-            if (currentMatch && !currentMatch.aliveIds?.includes(userId)) {
-                console.log('[startMoveCountdown] Skipped - player eliminated');
+        let moveCountdownTimeout = null;  // 🛡️ Для отмены pending setTimeout
+        let currentTimerRound = null;
+        let currentTimerDeadline = null;
+        let autoMoveTriggeredForRound = null;  // 🛡️ Защита от дублирования автохода
+        
+        function startMoveCountdown(seconds, round = null, deadline = null) {
+            if (seconds <= 0) return;
+            
+            const targetRound = round || currentMatch?.round;
+            
+            // 🛡️ Пропускаем если тот же deadline с свежим таймером
+            if (deadline && deadline === currentTimerDeadline && currentTimerRound === targetRound && moveCountdownInterval && seconds >= 10) {
+                console.log(`[startMoveCountdown] Skip: same deadline=${deadline}, round=${targetRound}`);
                 return;
             }
             
-            if (moveCountdownInterval) clearInterval(moveCountdownInterval);
+            // 🛡️ Не запускаем если автоход уже сделан для этого раунда
+            if (autoMoveTriggeredForRound === targetRound) {
+                console.log(`[startMoveCountdown] Skip: autoMove already triggered for round ${targetRound}`);
+                return;
+            }
+            
+            // Не запускаем если игрок выбыл
+            if (currentMatch && !currentMatch.aliveIds?.includes(userId)) return;
+            
+            // 🛡️ Очищаем ВСЕ pending таймеры перед запуском нового
+            if (moveCountdownInterval) {
+                clearInterval(moveCountdownInterval);
+                moveCountdownInterval = null;
+            }
+            if (moveCountdownTimeout) {
+                clearTimeout(moveCountdownTimeout);
+                moveCountdownTimeout = null;
+            }
+            
+            currentTimerRound = targetRound;
+            currentTimerDeadline = deadline;
+            console.log(`[startMoveCountdown] Starting timer for round ${targetRound}, deadline=${deadline}`);
+            
             let remaining = seconds;
+            let intervalId = null;
             
             const updateTimer = () => {
                 const timerEl = document.getElementById('moveTimer');
                 if (timerEl) {
                     timerEl.textContent = remaining + 's';
-                    // Меняем цвет когда мало времени
-                    if (remaining <= 3) {
-                        timerEl.style.color = '#ff4444';
-                    } else if (remaining <= 6) {
-                        timerEl.style.color = '#ffaa00';
-                    } else {
-                        timerEl.style.color = '#00ff88';
-                    }
+                    if (remaining <= 3) timerEl.style.color = '#ff4444';
+                    else if (remaining <= 6) timerEl.style.color = '#ffaa00';
+                    else timerEl.style.color = '#00ff88';
                 }
                 remaining--;
                 if (remaining < 0) {
-                    clearInterval(moveCountdownInterval);
-                    if (timerEl) timerEl.textContent = '⏱️';
-                    // ⏱️ Авто-ход при таймауте (только если игрок жив и ход не сделан)
+                    clearInterval(intervalId);
+                    moveCountdownInterval = null;
+                    const timerElFinal = document.getElementById('moveTimer');
+                    if (timerElFinal) timerElFinal.textContent = '⏱️';
+                    
                     const isPlayerAlive = currentMatch?.aliveIds?.includes(userId);
-                    if (isPlayerAlive && currentMatch && !currentMatch.moves?.[userId]) {
+                    // 🛡️ Проверяем что автоход ещё не делали для этого раунда
+                    if (isPlayerAlive && currentMatch && !currentMatch.moves?.[userId] && autoMoveTriggeredForRound !== currentTimerRound) {
+                        autoMoveTriggeredForRound = currentTimerRound;  // 🛡️ Ставим флаг ДО вызова
                         const moves = ['ROCK', 'PAPER', 'SCISSORS'];
                         const randomMove = moves[Math.floor(Math.random() * moves.length)];
                         log('⏱️ Время вышло! Авто-ход: ' + randomMove);
                         makeMove(randomMove);
-                    } else if (!isPlayerAlive) {
-                        console.log('[AutoMove] Skipped - player eliminated');
-                    } else {
-                        console.log('[AutoMove] Skipped - move already made');
                     }
                 }
             };
             
-            updateTimer();
-            moveCountdownInterval = setInterval(updateTimer, 1000);
+            // Запускаем таймер с повторными попытками если элемент не найден
+            let retryCount = 0;
+            const maxRetries = 10;
+            
+            const tryStartTimer = () => {
+                let timerEl = document.getElementById('moveTimer');
+                
+                // 🛡️ Если элемента нет, создаём его динамически в game-status
+                if (!timerEl) {
+                    const gameStatus = document.querySelector('.game-status');
+                    if (gameStatus && !document.getElementById('moveTimer')) {
+                        timerEl = document.createElement('div');
+                        timerEl.id = 'moveTimer';
+                        timerEl.className = 'move-timer';
+                        timerEl.style.cssText = 'font-size: 2em; font-weight: bold; margin: 10px 0; color: #00ff88;';
+                        // Вставляем после status-text
+                        const statusText = gameStatus.querySelector('.status-text');
+                        if (statusText && statusText.nextSibling) {
+                            gameStatus.insertBefore(timerEl, statusText.nextSibling);
+                        } else if (gameStatus.firstChild) {
+                            gameStatus.insertBefore(timerEl, gameStatus.firstChild.nextSibling);
+                        } else {
+                            gameStatus.appendChild(timerEl);
+                        }
+                        console.log('[startMoveCountdown] Created moveTimer dynamically');
+                    }
+                }
+                
+                if (!timerEl && retryCount < maxRetries) {
+                    retryCount++;
+                    moveCountdownTimeout = setTimeout(tryStartTimer, 100);
+                    return;
+                }
+                
+                // Элемент найден или закончились попытки
+                updateTimer();
+                intervalId = setInterval(updateTimer, 1000);
+                moveCountdownInterval = intervalId;
+                moveCountdownTimeout = null;
+            };
+            
+            // Небольшая задержка чтобы DOM успел обновиться
+            moveCountdownTimeout = setTimeout(tryStartTimer, 50);  // 🛡️ Сохраняем ID
         }
 
         function stopMoveCountdown() {
@@ -2520,6 +3000,18 @@
                 clearInterval(moveCountdownInterval);
                 moveCountdownInterval = null;
             }
+            if (moveCountdownTimeout) {
+                clearTimeout(moveCountdownTimeout);  // 🛡️ Очищаем pending timeout
+                moveCountdownTimeout = null;
+            }
+            currentTimerRound = null;
+            currentTimerDeadline = null;
+            // 🛡️ НЕ сбрасываем autoMoveTriggeredForRound здесь - это защита на уровне раунда
+        }
+        
+        // 🛡️ Сброс флага автохода при старте нового матча
+        function resetAutoMoveFlag() {
+            autoMoveTriggeredForRound = null;
         }
 
         // Render Functions
@@ -2559,7 +3051,7 @@
                 <div class="game-status">
                     <div class="status-text">${statusText}</div>
                     ${!isFinished && isPlayerAlive ? `
-                    <div class="move-timer" id="moveTimer" style="font-size: 2em; font-weight: bold; margin: 10px 0; color: #00ff88;">12s</div>
+                    <div class="move-timer" id="moveTimer" style="font-size: 2em; font-weight: bold; margin: 10px 0; color: #00ff88;">⏱️</div>
                     ` : ''}
                     <div class="match-info">
                         <div class="info-item">
@@ -2600,7 +3092,9 @@
 
                 let statusText = isWinner ? t('winner') : isEliminated ? t('eliminated') : isAlive ? t('inGame') : '';
                 let botDisplayName = isBot ? (m.botNames?.[pid] || pid) : pid;
-                let nameText = isMe ? '👤 ' + (t('you') || 'You') : isBot ? '🤖 ' + botDisplayName : '👤 ' + pid.slice(0,8);
+                // 👤 Используем displayName из playerNames (клиент) или m.playerNames (сервер)
+                let playerDisplayName = !isBot ? (playerNames[pid] || m.playerNames?.[pid] || pid.slice(0,8)) : botDisplayName;
+                let nameText = isMe ? '👤 ' + (t('you') || 'You') : isBot ? '🤖 ' + botDisplayName : '👤 ' + playerDisplayName;
 
                 html += `
                     <div class="player-card ${isWinner ? 'winner' : isEliminated ? 'eliminated' : isAlive ? 'active' : ''}">
@@ -2829,11 +3323,13 @@
             const displayName = document.getElementById('profileDisplayName').value.trim();
             const gender = document.getElementById('profileGender').value;
             
-            let avatarUrl = currentProfile.avatarUrl;
+            let avatarUrl = currentProfile.avatarUrl || null;
             // If selected a preset avatar (not custom upload)
             if (selectedAvatarId && selectedAvatarId !== 'custom') {
                 avatarUrl = `${API_URL}/avatars/${selectedAvatarId}.svg`;
             }
+            // Convert empty string to null for server
+            if (avatarUrl === '') avatarUrl = null;
             
             try {
                 const res = await fetch(`${API_URL}/auth/profile`, {
@@ -2985,6 +3481,194 @@
             // Re-render chat to show new avatar
             renderChatMessages();
         }
+
+        // 👤 Просмотр публичного профиля игрока
+        async function showPublicProfile(targetUserId, displayName) {
+            sounds.click();
+            
+            // Показываем модалку с загрузкой
+            const modal = document.getElementById('statsModal');
+            const body = document.getElementById('statsModalBody');
+            modal.classList.add('show');
+            body.innerHTML = `<div style="text-align:center;padding:20px;">Загрузка профиля ${displayName}...</div>`;
+            
+            try {
+                // Запрашиваем публичный профиль
+                const r = await fetch(`${API_URL}/auth/public-profile/${targetUserId}`, {
+                    headers: token ? { "Authorization": "Bearer " + token } : {}
+                });
+                
+                if (!r.ok) {
+                    body.innerHTML = `<div style="text-align:center;padding:20px;color:#ff6b6b;">❌ Не удалось загрузить профиль</div>`;
+                    return;
+                }
+                
+                const data = await r.json();
+                
+                body.innerHTML = `
+                    <div style="text-align:center;padding:20px;">
+                        <div style="font-size:3em;margin-bottom:10px;">${data.avatarUrl ? `<img src="${data.avatarUrl}" style="width:80px;height:80px;border-radius:50%;object-fit:cover;">` : '👤'}</div>
+                        <div style="font-size:1.5em;font-weight:bold;color:#ffd700;margin-bottom:5px;">${data.displayName || 'Игрок'}</div>
+                        <div style="color:#aaa;margin-bottom:20px;">ID: ${data.id?.slice(0,8)}...</div>
+                        
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:20px;">
+                            <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;">
+                                <div style="font-size:1.8em;font-weight:bold;color:#00ff88;">${data.stats?.totalMatches || 0}</div>
+                                <div style="font-size:0.9em;color:#aaa;">Всего игр</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:10px;">
+                                <div style="font-size:1.8em;font-weight:bold;color:#ffd700;">${data.stats?.wins || 0}</div>
+                                <div style="font-size:0.9em;color:#aaa;">Побед</div>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top:20px;padding:15px;background:rgba(255,255,255,0.05);border-radius:10px;">
+                            <div style="color:#aaa;margin-bottom:10px;">Винрейт</div>
+                            <div style="font-size:1.5em;font-weight:bold;color:${(data.stats?.winRate || 0) > 50 ? '#00ff88' : '#ff6b6b'};">${data.stats?.winRate || 0}%</div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                body.innerHTML = `<div style="text-align:center;padding:20px;color:#ff6b6b;">❌ Ошибка: ${e.message}</div>`;
+            }
+        }
+
+        // Stats Modal Functions
+        async function showStatsModal() {
+            sounds.click();
+            if (!token) {
+                log('❌ Сначала войдите');
+                return;
+            }
+            document.getElementById('statsModal').classList.add('show');
+            const body = document.getElementById('statsModalBody');
+            body.innerHTML = '<div style="text-align:center;padding:20px;">Загрузка...</div>';
+            try {
+                const r = await fetch(`${API_URL}/auth/stats`, { headers: { "Authorization": "Bearer " + token } });
+                const s = await r.json();
+                const winColor = s.winRate >= 50 ? '#4ade80' : (s.winRate >= 30 ? '#ffd700' : '#f87171');
+                body.innerHTML = `
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:20px;">
+                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                            <div style="font-size:2em;font-weight:bold;color:#ffd700;margin-bottom:5px;">${s.totalMatches}</div>
+                            <div style="font-size:0.9em;opacity:0.8;">Всего матчей</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                            <div style="font-size:2em;font-weight:bold;color:${winColor};margin-bottom:5px;">${s.winRate}%</div>
+                            <div style="font-size:0.9em;opacity:0.8;">Винрейт</div>
+                            <div style="width:100%;height:10px;background:rgba(255,255,255,0.1);border-radius:5px;overflow:hidden;margin-top:8px;">
+                                <div style="height:100%;background:linear-gradient(90deg,#4ade80,#ffd700);width:${s.winRate}%"></div>
+                            </div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                            <div style="font-size:2em;font-weight:bold;color:#4ade80;margin-bottom:5px;">${s.wins}</div>
+                            <div style="font-size:0.9em;opacity:0.8;">Побед</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                            <div style="font-size:2em;font-weight:bold;color:#f87171;margin-bottom:5px;">${s.losses}</div>
+                            <div style="font-size:0.9em;opacity:0.8;">Поражений</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,0.2);">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>🔥 Серия:</span><strong>${s.winStreak} (макс: ${s.maxWinStreak})</strong></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💰 Выиграно:</span><strong style="color:#4ade80">${s.totalWonVp.toLocaleString()} VP</strong></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💸 Проиграно:</span><strong style="color:#f87171">${s.totalLostVp.toLocaleString()} VP</strong></div>
+                        <div style="display:flex;justify-content:space-between;"><span>🎯 Макс. выигрыш:</span><strong style="color:#ffd700">${s.biggestWinVp.toLocaleString()} VP</strong></div>
+                    </div>`;
+            } catch (e) {
+                body.innerHTML = '<div style="color:#f87171;text-align:center;">❌ Ошибка</div>';
+            }
+        }
+        
+        function hideStatsModal() {
+            document.getElementById('statsModal').classList.remove('show');
+        }
+
+        async function showAuditModal() {
+            sounds.click();
+            if (!token) { log('❌ Сначала войдите'); return; }
+            document.getElementById('auditModal').classList.add('show');
+            const body = document.getElementById('auditModalBody');
+            body.innerHTML = '<div style="text-align:center;padding:20px;">Загрузка...</div>';
+            try {
+                const r = await fetch(`${API_URL}/auth/audit`, { headers: { "Authorization": "Bearer " + token } });
+                const data = await r.json();
+                if (data.count === 0) {
+                    body.innerHTML = '<div style="text-align:center;padding:20px;opacity:0.7;">Нет записей в истории</div>';
+                    return;
+                }
+                let html = `<div style="max-height:400px;overflow-y:auto;">`;
+                data.logs.forEach(log => {
+                    const date = new Date(log.createdAt).toLocaleString();
+                    const payload = JSON.stringify(log.payload || {});
+                    html += `
+                        <div style="background:rgba(255,255,255,0.05);padding:12px;margin-bottom:8px;border-radius:8px;font-size:0.9em;">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                                <strong style="color:#ffd700;">${log.eventType}</strong>
+                                <span style="opacity:0.6;font-size:0.8em;">${date}</span>
+                            </div>
+                            ${log.matchId ? `<div style="opacity:0.7;font-size:0.85em;">Match: ${log.matchId}</div>` : ''}
+                            <div style="opacity:0.7;font-size:0.85em;word-break:break-all;">${payload}</div>
+                        </div>`;
+                });
+                html += '</div>';
+                body.innerHTML = html;
+            } catch (e) {
+                body.innerHTML = '<div style="color:#f87171;text-align:center;">❌ Ошибка загрузки</div>';
+            }
+        }
+
+        function hideAuditModal() {
+            document.getElementById('auditModal').classList.remove('show');
+        }
+
+        async function showReconcileModal() {
+            sounds.click();
+            if (!token) { log('❌ Сначала войдите'); return; }
+            document.getElementById('reconcileModal').classList.add('show');
+            const body = document.getElementById('reconcileModalBody');
+            body.innerHTML = '<div style="text-align:center;padding:20px;">Загрузка...</div>';
+            try {
+                const r = await fetch(`${API_URL}/wallet/reconcile`, { headers: { "Authorization": "Bearer " + token } });
+                const d = await r.json();
+                const statusColor = d.isBalanced ? '#4ade80' : '#f87171';
+                const statusIcon = d.isBalanced ? '✅' : '⚠️';
+                body.innerHTML = `
+                    <div style="text-align:center;margin-bottom:20px;">
+                        <div style="font-size:3em;margin-bottom:10px;">${statusIcon}</div>
+                        <div style="font-size:1.2em;font-weight:bold;color:${statusColor};">
+                            ${d.isBalanced ? 'Баланс в порядке' : 'Обнаружено расхождение!'}
+                        </div>
+                        ${!d.isBalanced ? `<div style="color:#f87171;margin-top:10px;">Разница: ${d.discrepancy} VP</div>` : ''}
+                    </div>
+                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:20px;">
+                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                            <div style="font-size:1.8em;font-weight:bold;color:#4ade80;">${d.actualBalance.toLocaleString()}</div>
+                            <div style="font-size:0.85em;opacity:0.8;">Фактический баланс</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                            <div style="font-size:1.8em;font-weight:bold;color:#ffd700;">${d.expectedBalance.toLocaleString()}</div>
+                            <div style="font-size:0.85em;opacity:0.8;">Ожидаемый баланс</div>
+                        </div>
+                    </div>
+                    <div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,0.2);">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💰 Всего выиграно:</span><strong style="color:#4ade80">${d.stats.totalWon.toLocaleString()} VP</strong></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💸 Всего проиграно:</span><strong style="color:#f87171">${d.stats.totalLost.toLocaleString()} VP</strong></div>
+                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>📊 Чистая прибыль:</span><strong style="color:${d.stats.netProfit >= 0 ? '#4ade80' : '#f87171'}">${d.stats.netProfit >= 0 ? '+' : ''}${d.stats.netProfit.toLocaleString()} VP</strong></div>
+                        <div style="display:flex;justify-content:space-between;"><span>❄️ Заморожено:</span><strong>${d.frozenBalance.toLocaleString()} VP</strong></div>
+                    </div>`;
+            } catch (e) {
+                body.innerHTML = '<div style="color:#f87171;text-align:center;">❌ Ошибка загрузки</div>';
+            }
+        }
+
+        function hideReconcileModal() {
+            document.getElementById('reconcileModal').classList.remove('show');
+        }
+        
+        function hidePublicProfileModal() {
+            document.getElementById('publicProfileModal').classList.remove('show');
+        }
     </script>
 
     <!-- Login Modal -->
@@ -2997,11 +3681,14 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>Email</label>
-                    <input type="email" id="loginEmail" placeholder="your@email.com">
+                    <input type="email" id="loginEmail" placeholder="your@email.com" onkeydown="handleEnter(event, 'login')">
                 </div>
                 <div class="form-group">
                     <label>Пароль</label>
-                    <input type="password" id="loginPassword" placeholder="••••••">
+                    <div class="password-field">
+                        <input type="password" id="loginPassword" placeholder="••••••" onkeydown="handleEnter(event, 'login')">
+                        <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)">👁️</button>
+                    </div>
                 </div>
                 <button class="btn btn-success btn-full" onclick="doLogin()">Войти</button>
                 <div class="form-links">
@@ -3021,7 +3708,7 @@
             <div class="modal-body">
                 <div class="form-group">
                     <label>Email</label>
-                    <input type="email" id="registerEmail" placeholder="your@email.com">
+                    <input type="email" id="registerEmail" placeholder="your@email.com" onkeydown="handleEnter(event, 'register')">
                 </div>
                 <div class="form-group">
                     <label>Имя пользователя</label>
@@ -3029,7 +3716,10 @@
                 </div>
                 <div class="form-group">
                     <label>Пароль (мин. 6 символов)</label>
-                    <input type="password" id="registerPassword" placeholder="••••••">
+                    <div class="password-field">
+                        <input type="password" id="registerPassword" placeholder="••••••" onkeydown="handleEnter(event, 'register')">
+                        <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)">👁️</button>
+                    </div>
                 </div>
                 <button class="btn btn-success btn-full" onclick="doRegister()">Зарегистрироваться</button>
             </div>
@@ -3088,10 +3778,13 @@
                 <div class="profile-link-email" id="linkEmailSection" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
                     <p>Вы вошли как гость. Привяжите email для сохранения прогресса:</p>
                     <div class="form-group">
-                        <input type="email" id="linkEmail" placeholder="your@email.com">
+                        <input type="email" id="linkEmail" placeholder="your@email.com" onkeydown="handleEnter(event, 'linkEmail')">
                     </div>
                     <div class="form-group">
-                        <input type="password" id="linkPassword" placeholder="Пароль (мин. 6 символов)">
+                        <div class="password-field">
+                            <input type="password" id="linkPassword" placeholder="Пароль (мин. 6 символов)" onkeydown="handleEnter(event, 'linkEmail')">
+                            <button type="button" class="password-toggle" onclick="togglePassword('linkPassword', this)">👁️</button>
+                        </div>
                     </div>
                     <button class="btn btn-primary btn-full" onclick="linkEmail()">🔗 Привязать email</button>
                 </div>
@@ -3113,6 +3806,61 @@
                     <input type="email" id="forgotEmail" placeholder="your@email.com">
                 </div>
                 <button class="btn btn-success btn-full" onclick="doForgotPassword()">Отправить</button>
+            </div>
+        </div>
+    </div>
+    <!-- Stats Modal -->
+    <div class="modal-overlay" id="statsModal" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>📊 Статистика</h3>
+                <button class="modal-close" onclick="hideStatsModal()">×</button>
+            </div>
+            <div class="modal-body" id="statsModalBody">
+                <div class="stats-loading">Загрузка...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Modal -->
+    <div class="modal-overlay" id="auditModal" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>📜 История транзакций</h3>
+                <button class="modal-close" onclick="hideAuditModal()">×</button>
+            </div>
+            <div class="modal-body" id="auditModalBody">
+                <div class="stats-loading">Загрузка...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reconcile Modal -->
+    <div class="modal-overlay" id="reconcileModal" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>⚖️ Сверка баланса</h3>
+                <button class="modal-close" onclick="hideReconcileModal()">×</button>
+            </div>
+            <div class="modal-body" id="reconcileModalBody">
+                <div class="stats-loading">Загрузка...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Public Profile Modal (for viewing other players) -->
+    <div class="modal-overlay" id="publicProfileModal" onclick="closeModal(event)">
+        <div class="modal modal-small" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>👤 Профиль игрока</h3>
+                <button class="modal-close" onclick="hidePublicProfileModal()">×</button>
+            </div>
+            <div class="modal-body" id="publicProfileBody">
+                <div class="public-profile">
+                    <div class="profile-avatar-large" id="publicProfileAvatar"></div>
+                    <h3 id="publicProfileName"></h3>
+                    <div class="public-stats" id="publicProfileStats"></div>
+                </div>
             </div>
         </div>
     </div>

@@ -13,4 +13,32 @@ export class WalletsService {
             relations: { user: true },
         });
     }
+
+    // 🆕 Сброс frozen баланса (возвращает frozen на balance)
+    async resetFrozen(userId: string) {
+        const wallet = await this.walletsRepo.findOne({
+            where: { user: { id: userId } },
+        });
+        
+        if (!wallet) {
+            return { success: false, message: 'Wallet not found' };
+        }
+
+        const frozenAmount = wallet.frozenWp;
+        if (frozenAmount === 0) {
+            return { success: true, message: 'No frozen balance to reset', returnedVp: 0 };
+        }
+
+        wallet.balanceWp += frozenAmount;
+        wallet.frozenWp = 0;
+        await this.walletsRepo.save(wallet);
+
+        return { 
+            success: true, 
+            message: `Returned ${frozenAmount} VP to balance`, 
+            returnedVp: frozenAmount,
+            newBalance: wallet.balanceWp,
+            newFrozen: wallet.frozenWp
+        };
+    }
 }

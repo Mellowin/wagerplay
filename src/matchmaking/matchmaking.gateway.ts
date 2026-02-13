@@ -6,7 +6,10 @@ import {
   WebSocketServer,
   WsException,
 } from '@nestjs/websockets';
+import { InjectRepository } from '@nestjs/typeorm';
 import { Server, Socket } from 'socket.io';
+import { Repository } from 'typeorm';
+import { User } from '../users/user.entity';
 import { MatchmakingService } from './matchmaking.service';
 
 type Move = 'ROCK' | 'PAPER' | 'SCISSORS';
@@ -21,14 +24,18 @@ export class MatchmakingGateway {
   // связь userId -> socket.id (для MVP достаточно)
   private userSockets = new Map<string, string>();
 
-  constructor(private mm: MatchmakingService) {}
+  constructor(
+    private mm: MatchmakingService,
+    @InjectRepository(User)
+    private usersRepo: Repository<User>,
+  ) {}
 
   afterInit() {
     // Передаём сервер в сервис для отправки событий
     this.mm.setServer(this.server);
   }
 
-  handleConnection(socket: Socket) {
+  async handleConnection(socket: Socket) {
     // token = userId (как у нас сейчас)
     const token = (socket.handshake.auth?.token || socket.handshake.query?.token) as string | undefined;
     if (!token) {
@@ -37,8 +44,25 @@ export class MatchmakingGateway {
     }
 
     const userId = token.toString().trim();
+    const displayName = (socket.handshake.auth?.displayName || socket.handshake.query?.displayName) as string | undefined;
     socket.data.userId = userId;
+    socket.data.displayName = displayName;
     this.userSockets.set(userId, socket.id);
+
+    // 🆕 Проверяем и очищаем зависшие матчи при подключении
+    try {
+      const cleanup = await this.mm.checkAndCleanupUserMatches(userId);
+      if (cleanup.cleaned > 0) {
+        console.log(`[Gateway] Cleaned ${cleanup.cleaned} orphaned matches for user ${userId}, returned ${cleanup.returnedVp} VP`);
+        socket.emit('matches:cleanup', { 
+          cleaned: cleanup.cleaned, 
+          returnedVp: cleanup.returnedVp,
+          message: `Возвращено ${cleanup.returnedVp} VP из зависших матчей`
+        });
+      }
+    } catch (e) {
+      console.error(`[Gateway] Error cleaning matches for user ${userId}:`, e);
+    }
 
     socket.emit('connected', { userId });
   }
@@ -63,8 +87,9 @@ export class MatchmakingGateway {
     @MessageBody() body: { playersCount: number; stakeVp: number },
   ) {
     const userId = this.getUserId(socket);
+    const displayName = socket.data.displayName as string | undefined;
 
-    const res = await this.mm.quickPlay(userId, body.playersCount, body.stakeVp);
+    const res = await this.mm.quickPlay(userId, body.playersCount, body.stakeVp, displayName);
     socket.emit('quickplay:result', res);
 
     // Если попали в очередь — ждём синхронизированное время
@@ -99,22 +124,49 @@ export class MatchmakingGateway {
               }, (5 - i) * 1000);
             }
             
+            // Запускаем матч сразу после отсчёта (5 сек)
             setTimeout(async () => {
-              socket.join(`match:${fb.matchId}`);
-              const m = await this.mm.getMatch(fb.matchId);
-              socket.emit('match:start', m);
-              socket.emit('match:update', m);
+              // 🛡️ Защита от двойного запуска
+              const startLockKey = `match:startlock:${fb.matchId}`;
+              const startLock = await this.mm.acquireLock(startLockKey, 10);
+              if (!startLock) {
+                console.log(`[Gateway] Match ${fb.matchId} start already in progress, skipping`);
+                return;
+              }
               
-              // Если остались только боты — запускаем пошаговую игру
-              if (m && m.aliveIds.length > 0 && m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
-                this.mm.processBotRounds(fb.matchId);
+              try {
+                // Устанавливаем таймер для первого хода
+                await this.mm.startMoveTimer(fb.matchId, 12);
+                
+                socket.join(`match:${fb.matchId}`);
+                const m = await this.mm.getMatch(fb.matchId);
+                if (!m || !m.moveDeadline) return;
+                
+                const matchWithDeadline = { ...m, deadline: m.moveDeadline };
+                socket.emit('match:start', matchWithDeadline);
+                socket.emit('match:update', matchWithDeadline);
+                
+                // Отправляем таймер отдельным событием
+                socket.emit('match:timer', {
+                  type: 'move',
+                  deadline: m.moveDeadline,
+                  secondsLeft: 12,
+                  round: m.round,  // 👈 Добавляем round
+                });
+                
+                // Если остались только боты — запускаем пошаговую игру
+                if (m.aliveIds.length > 0 && m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
+                  this.mm.processBotRounds(fb.matchId);
+                }
+              } finally {
+                await this.mm.releaseLock(startLockKey);
               }
             }, 5000);
           }
         } catch (e: any) {
           socket.emit('error', { message: e?.message || 'fallback failed' });
         }
-      }, 20_000);  // 20 секунд ждём реальных игроков
+      }, 100);  // Вызываем fallback сразу, он сам управляет ожиданием
     }
 
     // Если матч готов сразу — НИЧЕГО НЕ ДЕЛАЕМ здесь
@@ -138,7 +190,7 @@ export class MatchmakingGateway {
     const updated = await this.mm.submitMove(body.matchId, userId, body.move);
 
     // рассылаем всем участникам комнаты матча (в PVP пригодится)
-    this.server.to(`match:${body.matchId}`).emit('match:update', updated);
+    this.server.to(`match:${body.matchId}`).emit('match:update', { ...updated, deadline: updated.moveDeadline });
     
     // ⏱️ Отправляем информацию о таймере хода
     if (updated.moveDeadline) {
@@ -146,6 +198,7 @@ export class MatchmakingGateway {
         type: 'move',
         deadline: updated.moveDeadline,
         secondsLeft: Math.ceil((updated.moveDeadline - Date.now()) / 1000),
+        round: updated.round,  // 👈 Всегда включаем номер раунда
       });
     }
 
@@ -169,7 +222,7 @@ export class MatchmakingGateway {
     @MessageBody() body: { matchId: string },
   ) {
     const m = await this.mm.getMatch(body.matchId);
-    socket.emit('match:update', m);
+    socket.emit('match:update', { ...m, deadline: m?.moveDeadline });
     socket.join(`match:${body.matchId}`);
     return { ok: true };
   }
@@ -209,9 +262,15 @@ export class MatchmakingGateway {
   ) {
     const userId = this.getUserId(socket);
     
+    // Get user profile for displayName and avatar
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    const displayName = user?.displayName || userId.slice(0, 8);
+    
     // Отправляем сообщение всем в комнате матча
     this.server.to(`match:${body.matchId}`).emit('chat:game', {
       author: userId,
+      displayName,
+      avatarUrl: user?.avatarUrl || null,
       text: body.text,
       matchId: body.matchId,
       timestamp: Date.now(),
@@ -227,9 +286,15 @@ export class MatchmakingGateway {
   ) {
     const userId = this.getUserId(socket);
     
+    // Get user profile for displayName and avatar
+    const user = await this.usersRepo.findOne({ where: { id: userId } });
+    const displayName = user?.displayName || userId.slice(0, 8);
+    
     // Отправляем сообщение всем подключенным клиентам
     this.server.emit('chat:global', {
       author: userId,
+      displayName,
+      avatarUrl: user?.avatarUrl || null,
       text: body.text,
       timestamp: Date.now(),
     });
@@ -272,7 +337,7 @@ export class MatchmakingGateway {
       });
       
       // Отправляем обновление всем в комнате матча
-      this.server.to(`match:${matchId}`).emit('match:update', updated);
+      this.server.to(`match:${matchId}`).emit('match:update', { ...updated, deadline: updated.moveDeadline });
 
       // Если матч закончился — выходим
       if (updated.status === 'FINISHED' || updated.aliveIds.length === 1) {

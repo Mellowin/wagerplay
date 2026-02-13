@@ -6,9 +6,10 @@ import { Wallet } from '../wallets/wallet.entity';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { EmailService } from './email.service';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Wallet, UserStats])],
+  imports: [TypeOrmModule.forFeature([User, Wallet, UserStats]), AuditModule],
   controllers: [AuthController],
   providers: [AuthService, EmailService],
 })

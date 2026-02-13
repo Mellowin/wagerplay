@@ -26,6 +26,17 @@ export class AuditService {
         return e;
     }
 
+    async getByUser(userId: string, limit = 100) {
+        return this.repo.find({
+            where: [
+                { actorId: userId },
+                { payload: { userId } },
+            ],
+            order: { createdAt: 'DESC' },
+            take: limit,
+        });
+    }
+
     async getByMatch(matchId: string, limit = 200) {
         return this.repo.find({
             where: { matchId },

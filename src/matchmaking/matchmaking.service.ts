@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { randomUUID } from 'crypto';
@@ -36,7 +36,7 @@ const BOT_NICKNAMES = [
 type Move = 'ROCK' | 'PAPER' | 'SCISSORS';
 
 // ✅ NEW: статус матча расширили
-type MatchStatus = 'READY' | 'BOT_MATCH' | 'IN_PROGRESS' | 'FINISHED';
+type MatchStatus = 'READY' | 'BOT_MATCH' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
 
 type Ticket = {
     ticketId: string;
@@ -44,6 +44,7 @@ type Ticket = {
     playersCount: number;
     stakeVp: number;
     createdAt: number; // ms
+    displayName?: string; // 👤 Имя игрока
 };
 
 // ✅ UPDATED: Match теперь хранит выбывших/живых и победителя
@@ -68,6 +69,9 @@ type Match = {
 
     // 🎮 Никнеймы ботов (id -> nickname)
     botNames?: Record<string, string>;
+    
+    // 👤 Имена игроков (id -> displayName)
+    playerNames?: Record<string, string>;
 
     // ⏱️ Таймеры
     moveDeadline?: number;        // Дедлайн для хода (timestamp)
@@ -96,7 +100,17 @@ type Match = {
 
 @Injectable()
 export class MatchmakingService {
-    private redis: Redis;
+    readonly redis: Redis;
+
+    // Публичный метод для установки lock из gateway
+    async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+        const result = await this.redis.set(key, '1', 'EX', ttlSeconds, 'NX');
+        return !!result;
+    }
+
+    async releaseLock(key: string): Promise<void> {
+        await this.redis.del(key);
+    }
 
     constructor(
         private cfg: ConfigService,
@@ -110,6 +124,18 @@ export class MatchmakingService {
             host: this.cfg.get<string>('REDIS_HOST') || 'localhost',
             port: Number(this.cfg.get<string>('REDIS_PORT') || 6379),
         });
+
+        // 🆕 Автоматическая очистка зависших матчей при старте
+        this.cleanupOrphanedMatches(10).then(cleaned => {
+            if (cleaned > 0) {
+                console.log(`[MatchmakingService] Startup cleanup: ${cleaned} orphaned matches cleaned`);
+            }
+        });
+
+        // 🆕 Периодическая проверка каждые 5 минут
+        setInterval(() => {
+            this.cleanupOrphanedMatches(10);
+        }, 5 * 60 * 1000);
     }
 
     private server: any;
@@ -206,6 +232,110 @@ export class MatchmakingService {
         });
     }
 
+    // 🆕 Отмена матча и возврат всех замороженных средств
+    private async cancelMatch(matchId: string, reason: string): Promise<void> {
+        const m = await this.getMatch(matchId);
+        if (!m) {
+            console.log(`[cancelMatch] Match ${matchId} not found`);
+            return;
+        }
+        
+        if (m.status === 'FINISHED' || m.status === 'CANCELLED') {
+            console.log(`[cancelMatch] Match ${matchId} already ${m.status}, skipping`);
+            return;
+        }
+
+        console.log(`[cancelMatch] Cancelling match ${matchId}, reason: ${reason}`);
+
+        // Возвращаем замороженные средства всем реальным игрокам
+        const realPlayers = m.playerIds.filter(id => !this.isBot(id));
+        
+        for (const userId of realPlayers) {
+            await this.dataSource.transaction(async manager => {
+                const w = await manager.findOne(Wallet, { 
+                    where: { user: { id: userId } }, 
+                    lock: { mode: 'pessimistic_write' } 
+                });
+                if (!w) return;
+
+                // Проверяем что у игрока действительно заморожены средства
+                if (w.frozenWp >= m.stakeVp) {
+                    w.frozenWp -= m.stakeVp;
+                    w.balanceWp += m.stakeVp;
+                    await manager.save(w);
+
+                    await this.audit.log({
+                        actorId: userId,
+                        eventType: 'STAKE_RETURNED',
+                        matchId,
+                        payload: { 
+                            amountVp: m.stakeVp,
+                            reason: `MATCH_CANCELLED: ${reason}`,
+                            stakeVp: m.stakeVp,
+                            balanceAfter: w.balanceWp,
+                            frozenAfter: w.frozenWp 
+                        },
+                    });
+                    console.log(`[cancelMatch] Returned ${m.stakeVp} VP to user ${userId}`);
+                } else {
+                    console.log(`[cancelMatch] User ${userId} has insufficient frozen balance: ${w.frozenWp} < ${m.stakeVp}`);
+                }
+            });
+        }
+
+        // Обновляем статус матча
+        m.status = 'CANCELLED';
+        m.finishedAt = Date.now();
+        await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 3600);
+
+        // Уведомляем игроков через комнату матча
+        if (this.server) {
+            this.server.to(`match:${matchId}`).emit('match:cancelled', { 
+                matchId, 
+                reason,
+                message: 'Матч отменен, средства возвращены на счет'
+            });
+        }
+
+        console.log(`[cancelMatch] Match ${matchId} cancelled successfully`);
+    }
+
+    // 🆕 Периодическая очистка зависших матчей (вызывать из cron или при старте)
+    async cleanupOrphanedMatches(maxAgeMinutes: number = 10): Promise<number> {
+        const pattern = this.matchKey('*');
+        const keys = await this.redis.keys(pattern);
+        let cleaned = 0;
+        const now = Date.now();
+        const maxAgeMs = maxAgeMinutes * 60 * 1000;
+
+        console.log(`[cleanupOrphanedMatches] Checking ${keys.length} matches, max age: ${maxAgeMinutes}min`);
+
+        for (const key of keys) {
+            try {
+                const data = await this.redis.get(key);
+                if (!data) continue;
+
+                const m: Match = JSON.parse(data);
+                
+                // Пропускаем завершенные матчи
+                if (m.status === 'FINISHED' || m.status === 'CANCELLED') continue;
+
+                // Проверяем возраст матча
+                const age = now - m.createdAt;
+                if (age > maxAgeMs) {
+                    console.log(`[cleanupOrphanedMatches] Found orphaned match: ${m.matchId}, age: ${Math.round(age/60000)}min`);
+                    await this.cancelMatch(m.matchId, `Match timeout (${Math.round(age/60000)} minutes)`);
+                    cleaned++;
+                }
+            } catch (e) {
+                console.error(`[cleanupOrphanedMatches] Error processing key ${key}:`, e);
+            }
+        }
+
+        console.log(`[cleanupOrphanedMatches] Cleaned ${cleaned} orphaned matches`);
+        return cleaned;
+    }
+
     validateInputs(playersCount: number, stakeVp: number) {
         if (!ALLOWED_PLAYERS.has(playersCount)) {
             throw new BadRequestException('playersCount must be 2, 3, or 4');
@@ -228,7 +358,7 @@ export class MatchmakingService {
         return null;
     }
 
-    async quickPlay(userId: string, playersCount: number, stakeVp: number) {
+    async quickPlay(userId: string, playersCount: number, stakeVp: number, displayName?: string) {
         this.validateInputs(playersCount, stakeVp);
 
         // ✅ CHECK ONLY (не морозим тут!)
@@ -254,6 +384,7 @@ export class MatchmakingService {
             playersCount,
             stakeVp,
             createdAt: Date.now(),
+            displayName,  // 👤 Имя игрока
         };
 
         const q = this.qKey(playersCount, stakeVp);
@@ -267,8 +398,11 @@ export class MatchmakingService {
             await this.redis.set(queueTimeKey, queueStartTime, 'EX', 300);
         }
         
-        await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 300);
+        await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 60);  // TTL 60 сек
         await this.redis.rpush(q, ticket.ticketId);
+        
+        // 🧹 Очищаем истёкшие тикеты перед подсчётом
+        await this.cleanExpiredTicketsFromQueue(q);
         
         const queueLen = await this.redis.llen(q);
         console.log(`[quickPlay] User ${userId.slice(0,8)} joined queue ${q}, players: ${queueLen}/5`);
@@ -325,15 +459,64 @@ export class MatchmakingService {
 
     async getQueueLength(playersCount: number, stakeVp: number): Promise<number> {
         const q = this.qKey(playersCount, stakeVp);
+        await this.cleanExpiredTicketsFromQueue(q);  // 🧹 Очищаем перед подсчётом
         return await this.redis.llen(q);
+    }
+
+    // 🧹 Удаляет истёкшие тикеты из очереди
+    async cleanExpiredTicketsFromQueue(queueKey: string): Promise<number> {
+        const ticketIds = await this.redis.lrange(queueKey, 0, -1);
+        let removed = 0;
+        for (const tId of ticketIds) {
+            const exists = await this.redis.exists(this.ticketKey(tId));
+            if (!exists) {
+                await this.redis.lrem(queueKey, 0, tId);
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            console.log(`[cleanExpiredTickets] Removed ${removed} expired tickets from ${queueKey}`);
+        }
+        
+        // Если очередь пуста - сбрасываем время начала
+        const remaining = await this.redis.llen(queueKey);
+        if (remaining === 0) {
+            const parts = queueKey.split(':');
+            if (parts.length >= 3) {
+                const queueTimeKey = `queue:time:${parts[2]}:${parts[3] || '100'}`;
+                await this.redis.del(queueTimeKey);
+                console.log(`[cleanExpiredTickets] Reset queueTimeKey for empty queue`);
+            }
+        }
+        
+        return removed;
     }
 
     async tryAssembleMatch(playersCount: number, stakeVp: number, force: boolean = false) {
         const q = this.qKey(playersCount, stakeVp);
         const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
+        const lockKey = `queue:lock:${playersCount}:${stakeVp}`;
+
+        // 🛡️ Защита от двойного создания матча (race condition)
+        const lock = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
+        if (!lock) {
+            console.log(`[tryAssembleMatch] Lock exists, skipping duplicate`);
+            return null;
+        }
+
+        try {
+        // 🧹 Очищаем очередь от истёкших тикетов
+        await this.cleanExpiredTicketsFromQueue(q);
 
         const len = await this.redis.llen(q);
         console.log(`[tryAssembleMatch] Queue ${q}: ${len} players`);
+        
+        // 🧹 Если очередь пуста - сбрасываем время начала очереди
+        if (len === 0) {
+            await this.redis.del(queueTimeKey);
+            console.log(`[tryAssembleMatch] Queue empty, reset queueTime`);
+            return null;
+        }
         
         // ✅ Если меньше 2 реальных игроков - не собираем матч (ждем еще)
         if (len < 2) {
@@ -345,7 +528,15 @@ export class MatchmakingService {
         // 1. Прошло 20 секунд с начала очереди (force из fallback)
         // 2. Или набралось 5 игроков (полная команда)
         const queueStartTime = await this.redis.get(queueTimeKey);
-        const elapsedSec = queueStartTime ? Math.floor((Date.now() - parseInt(queueStartTime)) / 1000) : 0;
+        let elapsedSec = queueStartTime ? Math.floor((Date.now() - parseInt(queueStartTime)) / 1000) : 0;
+        
+        // 🛡️ Защита от "застрявшего" времени (если прошло больше часа - сбрасываем)
+        if (elapsedSec > 3600) {
+            console.log(`[tryAssembleMatch] Stale queueTime detected (${elapsedSec}s), resetting`);
+            await this.redis.set(queueTimeKey, Date.now().toString());
+            elapsedSec = 0;
+        }
+        
         const isTimeUp = elapsedSec >= 20;
         const isFull = len >= playersCount;
         
@@ -451,6 +642,14 @@ export class MatchmakingService {
         const feeVp = Math.floor((potVp * 5) / 100);
         const payoutVp = potVp - feeVp;
 
+        // 👤 Собираем имена игроков из тикетов
+        const playerNames: Record<string, string> = {};
+        for (const t of tickets) {
+            if (t.displayName) {
+                playerNames[t.userId] = t.displayName;
+            }
+        }
+
         const match: Match = {
             matchId: randomUUID(),
             playersCount,
@@ -463,6 +662,7 @@ export class MatchmakingService {
             playerIds,
             aliveIds: [...playerIds],  // теперь включает и ботов
             eliminatedIds: [],
+            playerNames,  // 👤 Добавляем имена игроков
             createdAt: Date.now(),
             status: 'READY',
             round: 1,
@@ -513,21 +713,42 @@ export class MatchmakingService {
                 }, (5 - i) * 1000);
             }
             
-            // 3. Через 5 сек отправляем match:start всем
+            // 3. Отправляем match:start сразу после отсчёта (5 сек)
             setTimeout(async () => {
-                const m = await this.getMatch(match.matchId);
-                if (m && this.server) {
-                    this.server.to(matchRoom).emit('match:start', m);
-                    this.server.to(matchRoom).emit('match:update', m);
-                    // Запускаем таймер первого хода
-                    const deadline = Date.now() + 12000;
-                    this.server.to(matchRoom).emit('match:timer', {
-                        type: 'move',
-                        deadline,
-                        secondsLeft: 12,
-                    });
-                    this.startMoveTimer(match.matchId, 12);
-                    console.log(`[tryAssembleMatch] Match ${match.matchId.slice(0,8)} started!`);
+                // 🛡️ Lock на время старта матча
+                const startLockKey = `match:startlock:${match.matchId}`;
+                const startLock = await this.redis.set(startLockKey, '1', 'EX', 10, 'NX');
+                if (!startLock) {
+                    console.log(`[SERVER] Match ${match.matchId.slice(0,8)} start already in progress, skipping duplicate`);
+                    return;
+                }
+                
+                try {
+                    console.log(`[SERVER] === MATCH STARTING: ${match.matchId.slice(0,8)} ===`);
+                    
+                    // Сначала запускаем таймер (устанавливает moveDeadline в матч и отправляет match:timer)
+                    console.log(`[SERVER] Calling startMoveTimer for ${match.matchId.slice(0,8)}`);
+                    await this.startMoveTimer(match.matchId, 12);
+                    
+                    // Получаем обновлённый матч с moveDeadline
+                    const m = await this.getMatch(match.matchId);
+                    
+                    // 🛡️ Проверяем что таймер действительно установился
+                    if (!m?.moveDeadline) {
+                        console.log(`[SERVER] No deadline after startMoveTimer, skipping emit`);
+                        return;
+                    }
+                    
+                    if (m && this.server) {
+                        console.log(`[SERVER] Emitting match:start + match:update for ${match.matchId.slice(0,8)}`);
+                        const matchWithDeadline = { ...m, deadline: m.moveDeadline };
+                        this.server.to(matchRoom).emit('match:start', matchWithDeadline);
+                        this.server.to(matchRoom).emit('match:update', matchWithDeadline);
+                        // match:timer уже отправлен в startMoveTimer!
+                        console.log(`[SERVER] === MATCH STARTED: ${match.matchId.slice(0,8)} ===`);
+                    }
+                } finally {
+                    await this.redis.del(startLockKey);
                 }
             }, 5000);
         }
@@ -536,6 +757,10 @@ export class MatchmakingService {
         await this.redis.del(queueTimeKey);
         
         return match.matchId;
+        } finally {
+            // 🛡️ Снимаем lock
+            await this.redis.del(lockKey);
+        }
     }
 
     // Fallback: если тикет висит >BOT_TIMEOUT_SEC — создаём BOT_MATCH
@@ -548,32 +773,27 @@ export class MatchmakingService {
             return { status: 'ALREADY_IN_MATCH' };
         }
 
-        // ✅ Сначала пробуем собрать PvP матч из очереди (force=true)
-        console.log(`[fallback] Trying to assemble PvP match...`);
+        const ageSec = (Date.now() - t.createdAt) / 1000;
+        
+        // ⏱️ Ждём пока не пройдёт 20 секунд с момента создания тикета
+        if (ageSec < 20) {
+            const msLeft = Math.ceil((20 - ageSec) * 1000);
+            console.log(`[fallback] Waiting ${msLeft}ms for 20sec threshold...`);
+            await new Promise(r => setTimeout(r, msLeft));
+            return this.fallbackToBotIfTimedOut(ticketId);
+        }
+        
+        // ✅ После 20 сек пробуем собрать PvP матч (force=true позволяет создать с < 5 игроками)
+        console.log(`[fallback] Trying to assemble PvP match after 20sec...`);
         const pvpMatchId = await this.tryAssembleMatch(t.playersCount, t.stakeVp, true);
         if (pvpMatchId) {
             console.log(`[fallback] PvP match created: ${pvpMatchId.slice(0,8)}`);
-            // Удаляем текущий тикет так как игрок вошёл в матч
             await this.redis.del(this.ticketKey(ticketId));
             return { status: 'MATCH_READY', matchId: pvpMatchId };
         }
-
-        const ageSec = (Date.now() - t.createdAt) / 1000;
         
-        // Если ещё не прошло 20 секунд — ждём оставшееся время
-        if (ageSec < 20) {
-            const msLeft = Math.ceil((20 - ageSec) * 1000);
-            console.log(`[fallback] Waiting ${msLeft}ms more...`);
-            await new Promise(r => setTimeout(r, msLeft));
-            return this.fallbackToBotIfTimedOut(ticketId);
-        }
-        
-        // Если ещё не прошло 30 секунд — ждём оставшееся время
-        if (ageSec < BOT_TIMEOUT_SEC) {
-            const msLeft = Math.ceil((BOT_TIMEOUT_SEC - ageSec) * 1000);
-            await new Promise(r => setTimeout(r, msLeft));
-            return this.fallbackToBotIfTimedOut(ticketId);
-        }
+        // ❌ Не собрался PvP - сразу создаём матч с ботами (не ждём больше)
+        console.log(`[fallback] No PvP match after 20sec, creating bot match...`);
 
         // --- готовим расчёты ---
         const stake = t.stakeVp;
@@ -623,6 +843,7 @@ export class MatchmakingService {
                 round: 1,
                 moves: {} as Record<string, Move>,
                 botNames: bots.reduce((acc, botId, i) => ({ ...acc, [botId]: botNames[i] }), {}),
+                playerNames: t.displayName ? { [t.userId]: t.displayName } : {},  // 👤 Имя игрока
             };
 
             await this.redis.set(this.matchKey(match.matchId), JSON.stringify(match), 'EX', 600);
@@ -683,6 +904,7 @@ export class MatchmakingService {
             round: 1,
             moves: {} as Record<string, Move>,
             botNames: bots.reduce((acc, botId, i) => ({ ...acc, [botId]: botNames[i] }), {}),
+            playerNames: t.displayName ? { [t.userId]: t.displayName } : {},  // 👤 Имя игрока
         };
 
         await this.redis.set(this.matchKey(match.matchId), JSON.stringify(match), 'EX', 600);
@@ -837,6 +1059,13 @@ export class MatchmakingService {
     // 📊 Обновление статистики игрока
     private async updatePlayerStats(userId: string, m: any) {
         const start = Date.now();
+        
+        // 🛡️ Защита от дублей: не обновляем статистику если матч отменен или тестовый
+        if (m.status === 'CANCELLED' || m.stakeVp === 0) {
+            console.log(`[updatePlayerStats] Skipping stats for user ${userId} - match ${m.matchId} is ${m.status || 'practice'}`);
+            return;
+        }
+        
         const isWinner = m.winnerId === userId;
         
         // Находим или создаём запись статистики
@@ -964,6 +1193,13 @@ export class MatchmakingService {
             }
 
             this.resolveRoundPure(m);
+            
+            // 🏆 Если остался 1 игрок - матч завершается
+            if (m.aliveIds.length === 1 && m.status !== 'FINISHED') {
+                m.status = 'FINISHED';
+                m.winnerId = m.aliveIds[0];
+                m.finishedAt = Date.now();
+            }
         }
     }
 
@@ -990,6 +1226,15 @@ export class MatchmakingService {
 
         // Резолвим раунд
         this.resolveRoundPure(m);
+        
+        // 🏆 Если остался 1 игрок - матч завершается
+        if (m.aliveIds.length === 1) {
+            m.status = 'FINISHED';
+            m.winnerId = m.aliveIds[0];
+            m.finishedAt = Date.now();
+            await this.settleIfFinished(m);
+            console.log(`[processSingleBotRound] Match finished - winner: ${m.winnerId}`);
+        }
 
         // Сохраняем в Redis
         await this.redis.set(this.matchKey(matchId), JSON.stringify(m), 'EX', 600);
@@ -1112,15 +1357,24 @@ export class MatchmakingService {
                 payload: m.lastRound,
             });
 
+            // 🏆 Если остался 1 игрок - матч завершается
+            if (m.aliveIds.length === 1) {
+                m.status = 'FINISHED';
+                m.winnerId = m.aliveIds[0];
+                m.finishedAt = Date.now();
+                await this.settleIfFinished(m);
+                await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
+                console.log(`[submitMove] Match finished (single player tie) - winner: ${m.winnerId}`);
+                return m;
+            }
+            
             m.round += 1;
             m.moves = {};
+            m.moveDeadline = undefined; // ⏱️ Сбрасываем старый дедлайн для нового раунда
             console.log(`[submitMove] TIE resolved: ${Date.now() - start}ms`);
 
-            // ✅ Сначала сохраняем в Redis, потом запускаем таймер!
+            // ✅ Сначала сохраняем в Redis
             await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
-
-            // Запускаем таймер для следующего раунда
-            this.startMoveTimer(m.matchId, MOVE_TIMEOUT_SEC);
 
             // 🤖 Если остались только боты - запускаем их игру
             const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
@@ -1129,6 +1383,10 @@ export class MatchmakingService {
                 setTimeout(() => {
                     this.processBotRounds(m.matchId);
                 }, 1500);
+            } else if (hasRealPlayers) {
+                // ⏱️ Запускаем таймер для следующего раунда (есть реальные игроки)
+                console.log(`[submitMove] Starting timer for round ${m.round} after tie`);
+                await this.startMoveTimer(m.matchId, 12);
             }
 
             if (m.winnerId) {
@@ -1221,19 +1479,10 @@ export class MatchmakingService {
         // игра продолжается
         m.round += 1;
         m.moves = {};
+        m.moveDeadline = undefined; // ⏱️ Сбрасываем старый дедлайн для нового раунда
 
-        // НЕ запускаем autoplay сразу — Gateway сделает это с задержкой
-        // if (m.aliveIds.length > 0 && m.aliveIds.every((id: string) => id.startsWith('BOT'))) {
-        //     this.autoplayBotsUntilFinished(m);
-        //     await this.settleIfFinished(m);
-        //     ...
-        // }
-
-        // ✅ Сначала сохраняем в Redis, потом запускаем таймер!
+        // ✅ Сохраняем в Redis
         await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
-
-        // Запускаем таймер для следующего раунда
-        this.startMoveTimer(m.matchId, MOVE_TIMEOUT_SEC);
 
         // 🤖 Если остались только боты - запускаем их игру
         const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
@@ -1242,6 +1491,10 @@ export class MatchmakingService {
             setTimeout(() => {
                 this.processBotRounds(m.matchId);
             }, 1500);
+        } else if (hasRealPlayers) {
+            // ⏱️ Запускаем таймер для следующего раунда (есть реальные игроки)
+            console.log(`[submitMove] Starting timer for round ${m.round} after elimination`);
+            await this.startMoveTimer(m.matchId, 12);
         }
 
         console.log(`[submitMove] END: ${Date.now() - start}ms`);
@@ -1260,6 +1513,23 @@ export class MatchmakingService {
             return;
         }
 
+        // 🛡️ Защита от дублирования через Redis lock
+        const timerLockKey = `timerlock:${matchId}:${m.round}`;
+        const lock = await this.redis.set(timerLockKey, '1', 'EX', 10, 'NX');
+        if (!lock) {
+            console.log(`[SERVER startMoveTimer] Lock exists for round ${m.round}, skipping duplicate`);
+            return;
+        }
+
+        // 🛡️ Дополнительная проверка: свежие данные из Redis
+        const freshM = await this.getMatch(matchId);
+        console.log(`[SERVER startMoveTimer] freshM.moveDeadline=${freshM?.moveDeadline}, now=${Date.now()}, diff=${freshM?.moveDeadline ? freshM.moveDeadline - Date.now() : 'N/A'}`);
+        if (freshM?.moveDeadline && freshM.moveDeadline > Date.now() + 1000) {
+            console.log(`[SERVER startMoveTimer] Timer already active (deadline ${freshM.moveDeadline}), skipping duplicate`);
+            await this.redis.del(timerLockKey); // снимаем свой lock
+            return;
+        }
+
         // Устанавливаем дедлайн
         m.moveDeadline = Date.now() + seconds * 1000;
         m.moveTimerStarted = Date.now();
@@ -1274,6 +1544,7 @@ export class MatchmakingService {
                 type: 'move',
                 deadline: m.moveDeadline,
                 secondsLeft: seconds,
+                round: m.round,  // 👈 Добавляем номер раунда
             });
         }
 
@@ -1366,15 +1637,17 @@ export class MatchmakingService {
 
     // ⏱️ Резолв раунда после автоматических ходов
     private async resolveRoundAfterAutoMoves(m: any) {
+        console.log(`[SERVER resolveRound] START round=${m.round}, match=${m.matchId.slice(0,8)}, alive=${m.aliveIds.length}`);
+        
         // ⚠️ КРИТИЧНО: Перезагружаем из Redis для актуальных данных
         const freshM = await this.getMatch(m.matchId);
         if (!freshM || freshM.status === 'FINISHED') {
-            console.log(`[resolveRoundAfterAutoMoves] Match not found or finished`);
+            console.log(`[SERVER resolveRound] Match not found or finished`);
             return;
         }
         // Если раунд изменился - пропускаем
         if (freshM.round !== m.round) {
-            console.log(`[resolveRoundAfterAutoMoves] Round changed (${m.round} != ${freshM.round}), skipping`);
+            console.log(`[SERVER resolveRound] Round changed (${m.round} != ${freshM.round}), skipping`);
             return;
         }
         // Сохраняем auto-moves перед перезаписью
@@ -1442,6 +1715,15 @@ export class MatchmakingService {
                 m.moves = {};
             }
         }
+        
+        // 🏆 Если остался 1 игрок - матч завершается (может быть ничья при 1 игроке)
+        if (m.aliveIds.length === 1 && m.status !== 'FINISHED') {
+            m.status = 'FINISHED';
+            m.winnerId = m.aliveIds[0];
+            m.finishedAt = Date.now();
+            await this.settleIfFinished(m);
+            console.log(`[resolveRoundAfterAutoMoves] Match finished (single player) - winner: ${m.winnerId}`);
+        }
 
         // ⚠️ Проверяем, не изменились ли данные в Redis с момента загрузки
         const currentM = await this.getMatch(m.matchId);
@@ -1450,20 +1732,28 @@ export class MatchmakingService {
             return;
         }
         
-        // ✅ Сначала сохраняем в Redis, потом запускаем таймер!
+        // ✅ Сначала сохраняем в Redis
+        console.log(`[SERVER resolveRound] Saving round ${m.round} to Redis, outcome=${m.lastRound?.outcome}`);
         await this.redis.set(this.matchKey(m.matchId), JSON.stringify(m), 'EX', 600);
         
-        // Запускаем таймер только если матч не закончился
+        // Запускаем таймер только если матч не закончился (ДО отправки match:update!)
         if (m.status !== 'FINISHED') {
-            this.startMoveTimer(m.matchId, MOVE_TIMEOUT_SEC);
+            console.log(`[SERVER resolveRound] Starting timer for round ${m.round}`);
+            await this.startMoveTimer(m.matchId, MOVE_TIMEOUT_SEC);
+            // Обновляем m после установки дедлайна
+            const updatedM = await this.getMatch(m.matchId);
+            if (updatedM) m = updatedM;
         }
         
-        // 📢 Отправляем обновление матча всем клиентам
+        // 📢 Отправляем обновление матча всем клиентам (ПОСЛЕ установки таймера!)
+        console.log(`[SERVER resolveRound] Emitting match:update for round ${m.round}, deadline=${m.moveDeadline}`);
         if (this.server) {
-            this.server.to(`match:${m.matchId}`).emit('match:update', m);
+            // 🛡️ Добавляем deadline как алиас для moveDeadline для совместимости с клиентом
+            const matchUpdate = { ...m, deadline: m.moveDeadline };
+            this.server.to(`match:${m.matchId}`).emit('match:update', matchUpdate);
         }
         
-        console.log(`[resolveRoundAfterAutoMoves] Round ${m.round} resolved, alive: ${m.aliveIds.length}, status: ${m.status}`);
+        console.log(`[SERVER resolveRound] END round=${m.round}, alive=${m.aliveIds.length}, status=${m.status}`);
         
         // 🤖 Если остались только боты - запускаем их игру
         const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
@@ -1505,12 +1795,95 @@ export class MatchmakingService {
                     round: updated.round,
                     aliveCount: updated.aliveIds.length 
                 });
-                this.server.to(`match:${matchId}`).emit('match:update', updated);
+                this.server.to(`match:${matchId}`).emit('match:update', { ...updated, deadline: updated.moveDeadline });
             }
 
             if (updated.status === 'FINISHED' || updated.aliveIds.length === 1) {
                 break;
             }
         }
+    }
+
+    // 🆕 Получение активных матчей пользователя (для проверки зависших)
+    async getUserActiveMatches(userId: string): Promise<Match[]> {
+        const pattern = this.matchKey('*');
+        const keys = await this.redis.keys(pattern);
+        const activeMatches: Match[] = [];
+
+        for (const key of keys) {
+            try {
+                const data = await this.redis.get(key);
+                if (!data) continue;
+
+                const m: Match = JSON.parse(data);
+                if (m.status !== 'FINISHED' && m.status !== 'CANCELLED' && m.playerIds.includes(userId)) {
+                    activeMatches.push(m);
+                }
+            } catch (e) {
+                console.error(`[getUserActiveMatches] Error processing key ${key}:`, e);
+            }
+        }
+
+        return activeMatches;
+    }
+
+    // 🆕 Проверка и очистка зависших матчей пользователя (вызывать при входе)
+    async checkAndCleanupUserMatches(userId: string): Promise<{ cleaned: number; returnedVp: number }> {
+        const activeMatches = await this.getUserActiveMatches(userId);
+        let cleaned = 0;
+        let returnedVp = 0;
+        const now = Date.now();
+        const maxAgeMs = 10 * 60 * 1000; // 10 минут
+
+        for (const m of activeMatches) {
+            const age = now - m.createdAt;
+            if (age > maxAgeMs) {
+                console.log(`[checkAndCleanupUserMatches] Found orphaned match for user ${userId}: ${m.matchId}, age: ${Math.round(age/60000)}min`);
+                await this.cancelMatch(m.matchId, `User rejoined, match timeout (${Math.round(age/60000)} minutes)`);
+                cleaned++;
+                returnedVp += m.stakeVp;
+            }
+        }
+
+        return { cleaned, returnedVp };
+    }
+
+    // 🧪 ТЕСТ: Создать фейковый зависший матч
+    async createTestOrphanedMatch(userId: string, stakeVp: number) {
+        const matchId = randomUUID();
+        const oldTimestamp = Date.now() - 15 * 60 * 1000; // 15 минут назад
+        
+        // Сначала заморозим средства
+        await this.freezeStake(userId, stakeVp);
+        
+        const m: Match = {
+            matchId,
+            playersCount: 2,
+            stakeVp,
+            potVp: stakeVp * 2,
+            feeRate: 0.05,
+            feeVp: Math.floor((stakeVp * 2) * 0.05),
+            payoutVp: stakeVp * 2 - Math.floor((stakeVp * 2) * 0.05),
+            settled: false,
+            playerIds: [userId, 'BOT1'],
+            aliveIds: [userId, 'BOT1'],
+            eliminatedIds: [],
+            playerNames: {},
+            createdAt: oldTimestamp, // ⏰ Старый timestamp!
+            status: 'IN_PROGRESS',
+            round: 1,
+            moves: {},
+        };
+        
+        await this.redis.set(this.matchKey(matchId), JSON.stringify(m), 'EX', 600);
+        
+        console.log(`[TEST] Created orphaned match: ${matchId}, createdAt: ${new Date(oldTimestamp).toISOString()}`);
+        
+        return { 
+            matchId, 
+            message: 'Test orphaned match created (15 min old)',
+            stakeVp,
+            createdAt: oldTimestamp
+        };
     }
 }

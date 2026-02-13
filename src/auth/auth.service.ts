@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+
 import { randomBytes, createHash } from 'crypto';
 
 // Временная заглушка для bcrypt
@@ -17,6 +18,7 @@ import { User } from '../users/user.entity';
 import { UserStats } from '../users/user-stats.entity';
 import { Wallet } from '../wallets/wallet.entity';
 import { EmailService } from './email.service';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -25,6 +27,7 @@ export class AuthService {
     @InjectRepository(UserStats) private userStatsRepo: Repository<UserStats>,
     @InjectRepository(Wallet) private walletsRepo: Repository<Wallet>,
     private emailService: EmailService,
+    private audit: AuditService,
   ) {}
 
   // Генерация случайного токена
@@ -205,13 +208,18 @@ export class AuthService {
     return { message: 'Если email существует, письмо отправлено' };
   }
 
+  // Проверка валидности токена сброса пароля
+  async validateResetToken(token: string): Promise<boolean> {
+    const user = await this.usersRepo.findOne({
+      where: { resetToken: token },
+    });
+    return !!(user && user.resetTokenExpires && user.resetTokenExpires > new Date());
+  }
+
   // Сброс пароля
   async resetPassword(token: string, newPassword: string) {
     const user = await this.usersRepo.findOne({
-      where: {
-        resetToken: token,
-        resetTokenExpires: new Date(),
-      },
+      where: { resetToken: token },
     });
 
     if (!user || !user.resetTokenExpires || user.resetTokenExpires < new Date()) {
@@ -251,8 +259,50 @@ export class AuthService {
     };
   }
 
+  // 👤 Публичный профиль пользователя (без приватных данных)
+  async getPublicProfile(userId: string) {
+    // Проверяем является ли userId валидным UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    
+    let user: User | null = null;
+    
+    if (isUuid) {
+      // Ищем по UUID
+      user = await this.usersRepo.findOne({
+        where: { id: userId },
+      });
+    }
+    
+    // Если не найден или не UUID - ищем по displayName
+    if (!user && userId) {
+      user = await this.usersRepo.findOne({
+        where: { displayName: userId },
+      });
+    }
+
+    if (!user) {
+      throw new BadRequestException('Пользователь не найден');
+    }
+
+    // Загружаем статистику отдельно (используем найденный user.id)
+    const stats = await this.userStatsRepo.findOne({ where: { userId: user.id } });
+
+    return {
+      id: user.id,
+      displayName: user.displayName || 'Игрок',
+      avatarUrl: user.avatarUrl,
+      isGuest: user.isGuest,
+      stats: {
+        totalMatches: stats?.totalMatches || 0,
+        wins: stats?.wins || 0,
+        losses: stats?.losses || 0,
+        winRate: stats?.winRate || 0,
+      },
+    };
+  }
+
   // Обновление профиля
-  async updateProfile(userId: string, data: { displayName?: string | null; gender?: 'male' | 'female' | null; avatarUrl?: string | null }) {
+  async updateProfile(userId: string, data: { displayName?: string | null; gender?: 'male' | 'female' | '' | null; avatarUrl?: string | null }) {
     const user = await this.usersRepo.findOne({ where: { id: userId } });
     
     if (!user) {
@@ -269,10 +319,12 @@ export class AuthService {
 
     // Validate and update gender
     if (data.gender !== undefined) {
-      if (data.gender !== null && data.gender !== 'male' && data.gender !== 'female') {
+      // Treat empty string as null (not selected)
+      const genderValue = data.gender === '' ? null : data.gender;
+      if (genderValue !== null && genderValue !== 'male' && genderValue !== 'female') {
         throw new BadRequestException("gender должен быть 'male', 'female' или null");
       }
-      user.gender = data.gender;
+      user.gender = genderValue;
     }
 
     // Validate and update avatarUrl
@@ -280,15 +332,15 @@ export class AuthService {
       if (data.avatarUrl !== null && typeof data.avatarUrl !== 'string') {
         throw new BadRequestException('avatarUrl должен быть строкой');
       }
-      // Validate URL format if provided
+      // Allow data:image URLs (base64) and http(s) URLs
       if (data.avatarUrl !== null && data.avatarUrl.length > 0) {
-        try {
-          new URL(data.avatarUrl);
-        } catch {
-          throw new BadRequestException('avatarUrl должен быть валидным URL');
+        const isHttpUrl = data.avatarUrl.startsWith('http://') || data.avatarUrl.startsWith('https://');
+        const isDataUrl = data.avatarUrl.startsWith('data:image/');
+        if (!isHttpUrl && !isDataUrl) {
+          throw new BadRequestException('avatarUrl должен быть http URL или data:image');
         }
-        if (data.avatarUrl.length > 100000) {
-          throw new BadRequestException('avatarUrl не должен превышать 100KB');
+        if (data.avatarUrl.length > 500000) {
+          throw new BadRequestException('avatarUrl не должен превышать 500KB');
         }
       }
       user.avatarUrl = data.avatarUrl === null ? null : data.avatarUrl.trim() || null;
@@ -414,6 +466,21 @@ export class AuthService {
       biggestStakeVp: stats.biggestStakeVp,
       winStreak: stats.winStreak,
       maxWinStreak: stats.maxWinStreak,
+    };
+  }
+
+  // 🆕 Получение audit логов пользователя
+  async getAudit(userId: string) {
+    const logs = await this.audit.getByUser(userId, 50);
+    return {
+      userId,
+      count: logs.length,
+      logs: logs.map(l => ({
+        eventType: l.eventType,
+        matchId: l.matchId,
+        payload: l.payload,
+        createdAt: l.createdAt,
+      })),
     };
   }
 }
