@@ -1,30 +1,30 @@
 # WagerPlay Backend
 
-Многопользовательская игра "Камень-Ножницы-Бумага" с матчмейкингом, real-time геймплеем и системой ставок.
+Multiplayer Rock-Paper-Scissors game with matchmaking, real-time gameplay, and betting system.
 
-> Проект создан для практики full-stack разработки. Backend на NestJS + PostgreSQL + Redis + Socket.io.
+> Practice project for full-stack development. Backend built with NestJS + PostgreSQL + Redis + Socket.io.
 
-## Что реализовано
+## What I Built
 
-- **Матчмейкинг** - очередь игроков с таймаутом 20 секунд, автодозаполнение ботами
-- **Real-time игровой процесс** - WebSocket события для ходов, таймеров, результатов раундов
-- **Система раундов** - автоматические ходы при таймауте, определение победителя по правилам КНБ
-- **Кошельки** - баланс VP (virtual points), заморозка ставок, выплаты победителям
-- **Аудит** - логирование финансовых операций для отладки
-- **Авторизация** - JWT токены + guest login без регистрации
-- **Чат** - глобальный и внутри матча
+- **Matchmaking** - player queue with 20-second timeout, auto-fill with bots
+- **Real-time gameplay** - WebSocket events for moves, timers, round results
+- **Round system** - automatic moves on timeout, rock-paper-scissors win logic
+- **Wallets** - VP (virtual points) balance, stake freezing, winner payouts
+- **Audit logging** - financial operation logs for debugging
+- **Authentication** - JWT tokens + guest login without registration
+- **Chat** - global and in-game match chat
 
-## Стек технологий
+## Tech Stack
 
 - **Backend:** NestJS + TypeScript
-- **База данных:** PostgreSQL + TypeORM
-- **Кэш/Очереди:** Redis (ioredis)
+- **Database:** PostgreSQL + TypeORM
+- **Cache/Queues:** Redis (ioredis)
 - **Real-time:** Socket.io
-- **Контейнеризация:** Docker + Docker Compose
+- **Containerization:** Docker + Docker Compose
 
-## Быстрый старт
+## Quick Start
 
-### 1. Установка
+### 1. Install
 
 ```bash
 git clone https://github.com/Mellowin/wagerplay.git
@@ -32,9 +32,9 @@ cd wagerplay/backend
 npm install
 ```
 
-### 2. Переменные окружения
+### 2. Environment
 
-Создай `.env`:
+Create `.env`:
 
 ```env
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/wagerplay
@@ -44,104 +44,104 @@ PORT=3000
 NODE_ENV=development
 ```
 
-### 3. Запуск
+### 3. Run
 
 ```bash
-# Инфраструктура (PostgreSQL + Redis)
+# Infrastructure (PostgreSQL + Redis)
 docker-compose up -d
 
-# Сервер разработки
+# Development server
 npm run start:dev
 ```
 
-Открой `http://localhost:3000/ws-test.html` для тестирования.
+Open `http://localhost:3000/ws-test.html` to test.
 
-## Как работает игра
+## How the Game Works
 
-### Flow матча
+### Match Flow
 
-1. Игрок нажимает "Quick Play" → попадает в очередь
-2. Система ждёт 20 секунд чтобы набрать игроков
-3. Если игроков меньше 5 - добавляются боты
-4. Отсчёт 5-4-3-2-1 → матч начинается
-5. Раунды по 12 секунд (камень/ножницы/бумага)
-6. Проигравшие выбывают, последний оставшийся - победитель
+1. Player clicks "Quick Play" → joins queue
+2. System waits 20 seconds to gather players
+3. If less than 5 players - bots are added
+4. Countdown 5-4-3-2-1 → match starts
+5. 12-second rounds (rock/paper/scissors)
+6. Losers eliminated, last player standing wins
 
-### Финансовый flow
+### Financial Flow
 
 ```
-1. Ставка замораживается (balance → frozen)
-2. Матч идёт
-3. Победитель получает pot - fee (10% комиссия)
-4. История операций сохраняется в audit_logs
+1. Stake is frozen (balance → frozen)
+2. Match plays out
+3. Winner receives pot - fee (10% house fee)
+4. Operation history saved to audit_logs
 ```
 
 ## API
 
 ### REST Endpoints
 
-| Метод | Эндпоинт | Описание |
-|-------|----------|----------|
-| POST | `/auth/guest` | Создать гостевой аккаунт |
-| POST | `/auth/login` | Войти (JWT) |
-| GET | `/wallet` | Баланс |
-| GET | `/wallet/reconcile` | Сверка баланса |
-| GET | `/matchmaking/match/:id` | Получить матч |
-| GET | `/matchmaking/match/:id/audit` | История событий матча |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/guest` | Create guest account |
+| POST | `/auth/login` | Login (JWT) |
+| GET | `/wallet` | Get balance |
+| GET | `/wallet/reconcile` | Balance reconciliation |
+| GET | `/matchmaking/match/:id` | Get match by ID |
+| GET | `/matchmaking/match/:id/audit` | Match event history |
 
 ### WebSocket Events
 
 **Client → Server:**
-- `quickplay` - начать поиск матча
-- `move` - сделать ход
-- `chat:global`, `chat:game` - отправить сообщение
+- `quickplay` - start match search
+- `move` - submit move
+- `chat:global`, `chat:game` - send message
 
 **Server → Client:**
-- `queue:sync` - обновление очереди
-- `match:found` - матч найден (отсчёт 5 сек)
-- `match:start` - начало игры
-- `match:update` - результат раунда
-- `match:timer` - синхронизация таймера
+- `queue:sync` - queue update
+- `match:found` - match found (5-sec countdown)
+- `match:start` - game starts
+- `match:update` - round result
+- `match:timer` - timer sync
 
-## Структура проекта
+## Project Structure
 
 ```
 src/
-├── auth/           # Авторизация (JWT, guest)
-├── matchmaking/    # Логика игры, очереди, WebSocket
-├── wallets/        # Балансы, ставки, выплаты
-├── audit/          # Логирование операций
-└── house/          # Системный "банк"
+├── auth/           # Auth (JWT, guest)
+├── matchmaking/    # Game logic, queue, WebSocket
+├── wallets/        # Balances, stakes, payouts
+├── audit/          # Operation logging
+└── house/          # System "bank"
 ```
 
-## Что я узнал/практиковал
+## What I Learned / Practiced
 
-- **WebSocket синхронизация:** как синхронизировать таймеры между клиентом и сервером
-- **Race conditions:** проверка round/deadline перед обработкой хода
-- **Транзакционность:** заморозка → списание → выплата (атомарные операции)
-- **Redis:** использование для очередей и временных данных матчей
-- **NestJS:** модули, guards, gateways, TypeORM интеграция
+- **WebSocket synchronization:** how to sync timers between client and server
+- **Race conditions:** round/deadline checks before processing moves
+- **Transactions:** freeze → deduct → payout (atomic operations)
+- **Redis:** using for queues and temporary match data
+- **NestJS:** modules, guards, gateways, TypeORM integration
 
-## Тестирование
+## Testing
 
 ```bash
-# Многопользовательский тест
-1. Открыть 3 вкладки браузера
-2. Войти как Guest в каждой
-3. Нажать Quick Play с одинаковыми параметрами
-4. Через 20 сек создастся матч
+# Multiplayer test
+1. Open 3 browser tabs
+2. Login as Guest in each
+3. Click Quick Play with same settings
+4. After 20 seconds match creates
 
-# Проверка баланса
-GET /wallet/reconcile - сравнивает actual vs expected
+# Balance check
+GET /wallet/reconcile - compares actual vs expected
 ```
 
-## Ограничения / Что можно улучшить
+## Limitations / Future Improvements
 
-- Нет нагрузочного тестирования (неизвестно поведение под 100+ игроками)
-- WebSocket без Redis Pub/Sub (не масштабируется на несколько серверов)
-- Нет reconnect при обрыве соединения
-- Email верификация требует SMTP конфигурации
+- No load testing (behavior under 100+ players unknown)
+- WebSocket without Redis Pub/Sub (won't scale to multiple servers)
+- No reconnection on disconnect
+- Email verification requires SMTP configuration
 
-## Лицензия
+## License
 
-MIT - для портфолио и обучения.
+MIT - for portfolio and educational purposes.
