@@ -91,7 +91,7 @@ Open `http://localhost:3000/ws-test.html` to test.
 | PATCH | `/auth/profile` | Update profile (name, avatar) |
 | GET | `/auth/stats` | Get statistics |
 | GET | `/wallet` | Get balance |
-| GET | `/wallet/reconcile` | Balance reconciliation |
+| GET | `/wallet/reconcile` | Debug: compare expected vs actual balance |
 | GET | `/matchmaking/match/:id` | Get match by ID |
 | GET | `/matchmaking/match/:id/audit` | Match event history |
 
@@ -124,7 +124,7 @@ src/
 
 - **WebSocket synchronization:** how to sync timers between client and server
 - **Race conditions:** round/deadline checks before processing moves
-- **Transactions:** freeze → deduct → payout (atomic operations)
+- **State consistency:** freeze → deduct → payout with consistent state updates
 - **Redis:** using for queues and temporary match data
 - **NestJS:** modules, guards, gateways, TypeORM integration
 
@@ -144,10 +144,8 @@ GET /wallet/reconcile - compares actual vs expected
 ## Limitations / Future Improvements
 
 - No load testing (behavior under 100+ players unknown)
-- WebSocket without Redis Pub/Sub (won't scale to multiple servers)
+- Not designed for horizontal scaling yet (single server instance)
 - No reconnection on disconnect
 - Email verification requires SMTP configuration
 
-## License
 
-MIT - for portfolio and educational purposes.
