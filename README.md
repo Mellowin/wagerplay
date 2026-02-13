@@ -8,11 +8,13 @@ Multiplayer Rock-Paper-Scissors game with matchmaking, real-time gameplay, and b
 
 - **Matchmaking** - player queue with 20-second timeout, auto-fill with bots
 - **Real-time gameplay** - WebSocket events for moves, timers, round results
-- **Round system** - automatic moves on timeout, rock-paper-scissors win logic
+- **Round system** - 12-second turns, auto-move if player doesn't respond, rock-paper-scissors win logic
 - **Wallets** - VP (virtual points) balance, stake freezing, winner payouts
+- **User Profiles** - customizable display name, avatar selection, upload custom avatar image
+- **Statistics** - track games played, wins/losses, VP earned/lost; view other players' stats in chat
 - **Audit logging** - financial operation logs for debugging
 - **Authentication** - JWT tokens + guest login without registration
-- **Chat** - global and in-game match chat
+- **Chat** - global and in-game match chat with player profiles
 
 ## Tech Stack
 
@@ -65,7 +67,8 @@ Open `http://localhost:3000/ws-test.html` to test.
 3. If less than 5 players - bots are added
 4. Countdown 5-4-3-2-1 → match starts
 5. 12-second rounds (rock/paper/scissors)
-6. Losers eliminated, last player standing wins
+6. Auto-move: if player doesn't respond in 12s, system makes random move
+7. Losers eliminated, last player standing wins
 
 ### Financial Flow
 
@@ -84,6 +87,9 @@ Open `http://localhost:3000/ws-test.html` to test.
 |--------|----------|-------------|
 | POST | `/auth/guest` | Create guest account |
 | POST | `/auth/login` | Login (JWT) |
+| GET | `/auth/me` | Get profile |
+| PATCH | `/auth/profile` | Update profile (name, avatar) |
+| GET | `/auth/stats` | Get statistics |
 | GET | `/wallet` | Get balance |
 | GET | `/wallet/reconcile` | Balance reconciliation |
 | GET | `/matchmaking/match/:id` | Get match by ID |
