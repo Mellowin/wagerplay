@@ -1142,7 +1142,7 @@
             </div>
             
             <!-- Logged in -->
-            <div class="user-info hidden" id="userInfo">
+            <div class="user-info" id="userInfo" style="display: none;">
                 <span class="user-email" id="userEmail"></span>
                 <img id="userAvatar" class="user-avatar-mini" src="" alt="avatar" onclick="showProfileModal()" style="cursor: pointer; width: 32px; height: 32px; border-radius: 50%; margin-right: 8px; display: none;">
                 <button class="btn btn-secondary" id="btnProfile" onclick="showProfileModal()">👤 Профиль</button>
@@ -2028,6 +2028,10 @@
                 if (r.ok) {
                     token = data.token;
                     userId = data.userId;
+                    // 🛡️ Сохраняем сессию для восстановления после F5
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('userId', userId);
+                    localStorage.setItem('isGuest', 'false');
                     currentProfile = {
                         displayName: data.displayName || data.username || email,
                         gender: data.gender || '',
@@ -2132,20 +2136,25 @@
         }
 
         function showUserInfo(email) {
-            document.getElementById('authButtons').classList.add('hidden');
-            document.getElementById('userInfo').classList.remove('hidden');
-            document.getElementById('userEmail').textContent = email;
+            const authButtons = document.getElementById('authButtons');
+            const userInfo = document.getElementById('userInfo');
+            const userEmail = document.getElementById('userEmail');
+            if (authButtons) authButtons.style.display = 'none';
+            if (userInfo) userInfo.style.display = 'flex';
+            if (userEmail) userEmail.textContent = email;
         }
 
         function logout() {
             token = '';
             userId = '';
+            // 🛡️ Очищаем сохраненную сессию
+            localStorage.removeItem('token');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('isGuest');
             if (socket) {
                 socket.disconnect();
                 socket = null;
             }
-            document.getElementById('authButtons').classList.remove('hidden');
-            document.getElementById('userInfo').classList.add('hidden');
             setButtons({ showAuth: true, showUser: false, showConnect: false, connect: false, quickplay: false, balance: false, logs: false });
             log('👋 Выход выполнен');
             sounds.click();
@@ -2153,11 +2162,24 @@
 
         // Initialize on load
         window.onload = function() {
-            // Initialize button states - show auth buttons, hide others
-            setButtons({ showAuth: true, showUser: false, showConnect: false, connect: false, quickplay: false, balance: false, logs: false });
             // Load saved language or default to Russian
             const savedLang = localStorage.getItem('preferredLang') || 'ru';
             setLang(savedLang);
+            
+            // 🛡️ Восстанавливаем сессию если есть сохраненный токен
+            const savedToken = localStorage.getItem('token');
+            const savedUserId = localStorage.getItem('userId');
+            if (savedToken && savedUserId) {
+                token = savedToken;
+                userId = savedUserId;
+                log(`🔄 Сессия восстановлена: ${userId.slice(0,8)}...`);
+                setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: true, logs: false });
+                updateUserInfoAfterLogin();
+                doCheckBalance();
+            } else {
+                // Initialize button states - show auth buttons, hide others
+                setButtons({ showAuth: true, showUser: false, showConnect: false, connect: false, quickplay: false, balance: false, logs: false });
+            }
             // Initialize chat history structure
             window.chatHistory = { global: [], games: {} };
             gameChatTimeouts = {};
@@ -2428,6 +2450,10 @@
                 const j = await r.json();
                 token = j.token;
                 userId = j.userId;
+                // 🛡️ Сохраняем сессию для восстановления после F5
+                localStorage.setItem('token', token);
+                localStorage.setItem('userId', userId);
+                localStorage.setItem('isGuest', 'true');
                 currentProfile = {
                     displayName: j.displayName || `Guest${userId.slice(0,6)}`,
                     gender: '',
@@ -3596,7 +3622,8 @@
 
         function updateUserInfoAfterLogin() {
             // Show user info section
-            document.getElementById('userInfo')?.classList.remove('hidden');
+            const userInfo = document.getElementById('userInfo');
+            if (userInfo) userInfo.style.display = 'flex';
             
             // Update email display
             const emailDisplay = document.getElementById('userEmail');
