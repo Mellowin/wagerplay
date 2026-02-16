@@ -1354,7 +1354,11 @@
                 avatarMale: 'Мужские',
                 avatarFemale: 'Женские',
                 avatarCustom: 'Своя',
-                saveBtn: '💾 Сохранить'
+                saveBtn: '💾 Сохранить',
+                profileModalTitle: '👤 Профиль',
+                profileGuestText: 'Вы вошли как гость. Привяжите email для сохранения прогресса:',
+                linkPasswordLabel: 'Пароль (мин. 6 символов)',
+                linkEmailBtn: '🔗 Привязать email'
             },
             en: {
                 title: 'WagerPlay - Rock Paper Scissors',
@@ -1423,7 +1427,11 @@
                 avatarMale: 'Male',
                 avatarFemale: 'Female',
                 avatarCustom: 'Custom',
-                saveBtn: '💾 Save'
+                saveBtn: '💾 Save',
+                profileModalTitle: '👤 Profile',
+                profileGuestText: 'You are logged in as a guest. Link your email to save progress:',
+                linkPasswordLabel: 'Password (min. 6 characters)',
+                linkEmailBtn: '🔗 Link Email'
             },
             cn: {
                 title: 'WagerPlay - 石头剪刀布',
@@ -1492,7 +1500,11 @@
                 avatarMale: '男性',
                 avatarFemale: '女性',
                 avatarCustom: '自定义',
-                saveBtn: '💾 保存'
+                saveBtn: '💾 保存',
+                profileModalTitle: '👤 资料',
+                profileGuestText: '您以访客身份登录。请绑定邮箱以保存进度：',
+                linkPasswordLabel: '密码（最少6个字符）',
+                linkEmailBtn: '🔗 绑定邮箱'
             }
         };
 
@@ -1572,6 +1584,16 @@
             if (genderMale) genderMale.textContent = t('genderMale');
             const genderFemale = document.getElementById('genderFemale');
             if (genderFemale) genderFemale.textContent = t('genderFemale');
+            
+            // Profile modal title and guest text
+            const profileModalTitle = document.getElementById('profileModalTitle');
+            if (profileModalTitle) profileModalTitle.textContent = t('profileModalTitle');
+            const profileGuestText = document.getElementById('profileGuestText');
+            if (profileGuestText) profileGuestText.textContent = t('profileGuestText');
+            const linkPasswordLabel = document.getElementById('linkPasswordLabel');
+            if (linkPasswordLabel) linkPasswordLabel.textContent = t('linkPasswordLabel');
+            const linkEmailBtn = document.getElementById('linkEmailBtn');
+            if (linkEmailBtn) linkEmailBtn.textContent = t('linkEmailBtn');
             
             if (subtitle) subtitle.textContent = t('subtitle');
             if (balanceLabel) balanceLabel.textContent = '💰 ' + t('balance');
@@ -3835,7 +3857,7 @@
                     <input type="text" id="registerUsername" placeholder="Username">
                 </div>
                 <div class="form-group">
-                    <label>Пароль (мин. 6 символов)</label>
+                    <label id="linkPasswordLabel">Пароль (мин. 6 символов)</label>
                     <div class="password-field">
                         <input type="password" id="registerPassword" placeholder="••••••" onkeydown="handleEnter(event, 'register')">
                         <button type="button" class="password-toggle" onclick="togglePassword('registerPassword', this)">👁️</button>
@@ -3850,7 +3872,7 @@
     <div class="modal-overlay" id="profileModal" onclick="closeModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h3>👤 Профиль</h3>
+                <h3 id="profileModalTitle">👤 Профиль</h3>
                 <button class="modal-close" onclick="hideProfileModal()">×</button>
             </div>
             <div class="modal-body">
@@ -3896,7 +3918,7 @@
                 </div>
                 
                 <div class="profile-link-email" id="linkEmailSection" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
-                    <p>Вы вошли как гость. Привяжите email для сохранения прогресса:</p>
+                    <p id="profileGuestText">Вы вошли как гость. Привяжите email для сохранения прогресса:</p>
                     <div class="form-group">
                         <input type="email" id="linkEmail" placeholder="your@email.com" onkeydown="handleEnter(event, 'linkEmail')">
                     </div>
@@ -3906,7 +3928,7 @@
                             <button type="button" class="password-toggle" onclick="togglePassword('linkPassword', this)">👁️</button>
                         </div>
                     </div>
-                    <button class="btn btn-primary btn-full" onclick="linkEmail()">🔗 Привязать email</button>
+                    <button class="btn btn-primary btn-full" id="linkEmailBtn" onclick="linkEmail()">🔗 Привязать email</button>
                 </div>
             </div>
         </div>
