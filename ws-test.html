@@ -1339,7 +1339,22 @@
                 auditBtn: '📜 Audit',
                 reconcileBtn: '⚖️ Сверка',
                 profileBtn: '👤 Профиль',
-                logoutBtn: '🚪 Выйти'
+                logoutBtn: '🚪 Выйти',
+                // Login modal
+                emailLabel: 'Email',
+                passwordLabel: 'Пароль',
+                forgotPassword: 'Забыли пароль?',
+                // Profile modal
+                displayNameLabel: 'Отображаемое имя',
+                genderLabel: 'Пол',
+                genderNotSpecified: 'Не указан',
+                genderMale: 'Мужской',
+                genderFemale: 'Женский',
+                selectAvatar: 'Выберите аватарку',
+                avatarMale: 'Мужские',
+                avatarFemale: 'Женские',
+                avatarCustom: 'Своя',
+                saveBtn: '💾 Сохранить'
             },
             en: {
                 title: 'WagerPlay - Rock Paper Scissors',
@@ -1393,7 +1408,22 @@
                 auditBtn: '📜 Audit',
                 reconcileBtn: '⚖️ Reconcile',
                 profileBtn: '👤 Profile',
-                logoutBtn: '🚪 Logout'
+                logoutBtn: '🚪 Logout',
+                // Login modal
+                emailLabel: 'Email',
+                passwordLabel: 'Password',
+                forgotPassword: 'Forgot password?',
+                // Profile modal
+                displayNameLabel: 'Display Name',
+                genderLabel: 'Gender',
+                genderNotSpecified: 'Not specified',
+                genderMale: 'Male',
+                genderFemale: 'Female',
+                selectAvatar: 'Select Avatar',
+                avatarMale: 'Male',
+                avatarFemale: 'Female',
+                avatarCustom: 'Custom',
+                saveBtn: '💾 Save'
             },
             cn: {
                 title: 'WagerPlay - 石头剪刀布',
@@ -1447,7 +1477,22 @@
                 auditBtn: '📜 审计',
                 reconcileBtn: '⚖️ 对账',
                 profileBtn: '👤 资料',
-                logoutBtn: '🚪 退出'
+                logoutBtn: '🚪 退出',
+                // Login modal
+                emailLabel: '邮箱',
+                passwordLabel: '密码',
+                forgotPassword: '忘记密码？',
+                // Profile modal
+                displayNameLabel: '显示名称',
+                genderLabel: '性别',
+                genderNotSpecified: '未指定',
+                genderMale: '男',
+                genderFemale: '女',
+                selectAvatar: '选择头像',
+                avatarMale: '男性',
+                avatarFemale: '女性',
+                avatarCustom: '自定义',
+                saveBtn: '💾 保存'
             }
         };
 
@@ -1493,6 +1538,40 @@
             if (btnProfile) btnProfile.textContent = t('profileBtn');
             const btnLogout = document.getElementById('btnLogout');
             if (btnLogout) btnLogout.textContent = t('logoutBtn');
+            
+            // Login modal labels
+            const loginEmailLabel = document.getElementById('loginEmailLabel');
+            if (loginEmailLabel) loginEmailLabel.textContent = t('emailLabel');
+            const loginPasswordLabel = document.getElementById('loginPasswordLabel');
+            if (loginPasswordLabel) loginPasswordLabel.textContent = t('passwordLabel');
+            const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+            if (loginSubmitBtn) loginSubmitBtn.textContent = t('login');
+            const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+            if (forgotPasswordLink) forgotPasswordLink.textContent = t('forgotPassword');
+            
+            // Profile modal labels
+            const profileDisplayNameLabel = document.getElementById('profileDisplayNameLabel');
+            if (profileDisplayNameLabel) profileDisplayNameLabel.textContent = t('displayNameLabel');
+            const profileGenderLabel = document.getElementById('profileGenderLabel');
+            if (profileGenderLabel) profileGenderLabel.textContent = t('genderLabel');
+            const profileAvatarLabel = document.getElementById('profileAvatarLabel');
+            if (profileAvatarLabel) profileAvatarLabel.textContent = t('selectAvatar');
+            const avatarTabMale = document.getElementById('avatarTabMale');
+            if (avatarTabMale) avatarTabMale.textContent = t('avatarMale');
+            const avatarTabFemale = document.getElementById('avatarTabFemale');
+            if (avatarTabFemale) avatarTabFemale.textContent = t('avatarFemale');
+            const avatarTabCustom = document.getElementById('avatarTabCustom');
+            if (avatarTabCustom) avatarTabCustom.textContent = t('avatarCustom');
+            const profileSaveBtn = document.getElementById('profileSaveBtn');
+            if (profileSaveBtn) profileSaveBtn.textContent = t('saveBtn');
+            
+            // Gender options
+            const genderNotSpecified = document.getElementById('genderNotSpecified');
+            if (genderNotSpecified) genderNotSpecified.textContent = t('genderNotSpecified');
+            const genderMale = document.getElementById('genderMale');
+            if (genderMale) genderMale.textContent = t('genderMale');
+            const genderFemale = document.getElementById('genderFemale');
+            if (genderFemale) genderFemale.textContent = t('genderFemale');
             
             if (subtitle) subtitle.textContent = t('subtitle');
             if (balanceLabel) balanceLabel.textContent = '💰 ' + t('balance');
@@ -3721,19 +3800,19 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Email</label>
+                    <label id="loginEmailLabel">Email</label>
                     <input type="email" id="loginEmail" placeholder="your@email.com" onkeydown="handleEnter(event, 'login')">
                 </div>
                 <div class="form-group">
-                    <label>Пароль</label>
+                    <label id="loginPasswordLabel">Пароль</label>
                     <div class="password-field">
                         <input type="password" id="loginPassword" placeholder="••••••" onkeydown="handleEnter(event, 'login')">
                         <button type="button" class="password-toggle" onclick="togglePassword('loginPassword', this)">👁️</button>
                     </div>
                 </div>
-                <button class="btn btn-success btn-full" onclick="doLogin()">Войти</button>
+                <button class="btn btn-success btn-full" id="loginSubmitBtn" onclick="doLogin()">Войти</button>
                 <div class="form-links">
-                    <a href="#" onclick="showForgotModal(); hideLoginModal(); return false;">Забыли пароль?</a>
+                    <a href="#" id="forgotPasswordLink" onclick="showForgotModal(); hideLoginModal(); return false;">Забыли пароль?</a>
                 </div>
             </div>
         </div>
@@ -3781,26 +3860,26 @@
                     </div>
                     <div class="profile-info">
                         <div class="form-group">
-                            <label>Отображаемое имя</label>
+                            <label id="profileDisplayNameLabel">Отображаемое имя</label>
                             <input type="text" id="profileDisplayName" placeholder="Ваше имя" maxlength="100">
                         </div>
                         <div class="form-group">
-                            <label>Пол</label>
+                            <label id="profileGenderLabel">Пол</label>
                             <select id="profileGender">
-                                <option value="">Не указан</option>
-                                <option value="male">Мужской</option>
-                                <option value="female">Женский</option>
+                                <option value="" id="genderNotSpecified">Не указан</option>
+                                <option value="male" id="genderMale">Мужской</option>
+                                <option value="female" id="genderFemale">Женский</option>
                             </select>
                         </div>
                     </div>
                 </div>
                 
                 <div class="avatar-section" id="avatarSection">
-                    <label>Выберите аватарку</label>
+                    <label id="profileAvatarLabel">Выберите аватарку</label>
                     <div class="avatar-tabs">
-                        <button class="avatar-tab active" onclick="switchAvatarTab('male', this)">Мужские</button>
-                        <button class="avatar-tab" onclick="switchAvatarTab('female', this)">Женские</button>
-                        <button class="avatar-tab" onclick="switchAvatarTab('custom', this)">Своя</button>
+                        <button class="avatar-tab active" id="avatarTabMale" onclick="switchAvatarTab('male', this)">Мужские</button>
+                        <button class="avatar-tab" id="avatarTabFemale" onclick="switchAvatarTab('female', this)">Женские</button>
+                        <button class="avatar-tab" id="avatarTabCustom" onclick="switchAvatarTab('custom', this)">Своя</button>
                     </div>
                     <div class="avatar-grid" id="maleAvatars"></div>
                     <div class="avatar-grid hidden" id="femaleAvatars"></div>
@@ -3813,7 +3892,7 @@
                 </div>
                 
                 <div class="profile-actions">
-                    <button class="btn btn-success btn-full" onclick="saveProfile()">💾 Сохранить</button>
+                    <button class="btn btn-success btn-full" id="profileSaveBtn" onclick="saveProfile()">💾 Сохранить</button>
                 </div>
                 
                 <div class="profile-link-email" id="linkEmailSection" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
