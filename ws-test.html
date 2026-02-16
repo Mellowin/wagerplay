@@ -1145,8 +1145,8 @@
             <div class="user-info hidden" id="userInfo">
                 <span class="user-email" id="userEmail"></span>
                 <img id="userAvatar" class="user-avatar-mini" src="" alt="avatar" onclick="showProfileModal()" style="cursor: pointer; width: 32px; height: 32px; border-radius: 50%; margin-right: 8px; display: none;">
-                <button class="btn btn-secondary" onclick="showProfileModal()">👤 Профиль</button>
-                <button class="btn btn-secondary" onclick="logout()">Выйти</button>
+                <button class="btn btn-secondary" id="btnProfile" onclick="showProfileModal()">👤 Профиль</button>
+                <button class="btn btn-secondary" id="btnLogout" onclick="logout()">🚪 Выйти</button>
             </div>
             
             <button class="btn btn-primary" id="btnConnect" onclick="doConnect()" disabled>🔗 Подключиться</button>
@@ -1330,10 +1330,16 @@
                 chatWillClose: 'Чат закроется через 2 минуты',
                 gameStarted: 'Игра началась! Удачи!',
                 login: 'Войти',
+                loginTitle: '🔑 Вход',
                 register: 'Регистрация',
                 logout: 'Выйти',
                 guest: 'Гость',
-                statsBtn: '📊 Статистика'
+                statsBtn: '📊 Статистика',
+                logsBtn: '📋 Логи',
+                auditBtn: '📜 Audit',
+                reconcileBtn: '⚖️ Сверка',
+                profileBtn: '👤 Профиль',
+                logoutBtn: '🚪 Выйти'
             },
             en: {
                 title: 'WagerPlay - Rock Paper Scissors',
@@ -1378,10 +1384,16 @@
                 chatWillClose: 'Chat will close in 2 minutes',
                 gameStarted: 'Game started! Good luck!',
                 login: 'Login',
+                loginTitle: '🔑 Login',
                 register: 'Register',
                 logout: 'Logout',
                 guest: 'Guest',
-                statsBtn: '📊 Stats'
+                statsBtn: '📊 Stats',
+                logsBtn: '📋 Logs',
+                auditBtn: '📜 Audit',
+                reconcileBtn: '⚖️ Reconcile',
+                profileBtn: '👤 Profile',
+                logoutBtn: '🚪 Logout'
             },
             cn: {
                 title: 'WagerPlay - 石头剪刀布',
@@ -1426,10 +1438,16 @@
                 chatWillClose: '聊天将在2分钟后关闭',
                 gameStarted: '游戏开始！祝你好运！',
                 login: '登录',
+                loginTitle: '🔑 登录',
                 register: '注册',
                 logout: '退出',
                 guest: '游客',
-                statsBtn: '📊 统计'
+                statsBtn: '📊 统计',
+                logsBtn: '📋 日志',
+                auditBtn: '📜 审计',
+                reconcileBtn: '⚖️ 对账',
+                profileBtn: '👤 资料',
+                logoutBtn: '🚪 退出'
             }
         };
 
@@ -1450,14 +1468,32 @@
             const btnRegisterText = document.getElementById('btnRegisterText');
             const btnGuestText = document.getElementById('btnGuestText');
             
+            // Auth buttons
             if (btnLoginText) btnLoginText.textContent = t('login');
+            const loginTitle = document.getElementById('loginTitle');
+            if (loginTitle) loginTitle.textContent = t('loginTitle');
             if (btnRegisterText) btnRegisterText.textContent = t('register');
             if (btnGuestText) btnGuestText.textContent = t('guest');
             if (btnConnect) btnConnect.textContent = t('connect');
             if (playBtnText) playBtnText.textContent = t('quickplay');
             if (btnBalance) btnBalance.textContent = t('balanceBtn');
+            
+            // Stats, Logs, Audit, Reconcile buttons
             const btnStats = document.getElementById('btnStats');
             if (btnStats) btnStats.textContent = t('statsBtn');
+            const btnLogs = document.getElementById('btnLogs');
+            if (btnLogs) btnLogs.textContent = t('logsBtn');
+            const btnAudit = document.getElementById('btnAudit');
+            if (btnAudit) btnAudit.textContent = t('auditBtn');
+            const btnReconcile = document.getElementById('btnReconcile');
+            if (btnReconcile) btnReconcile.textContent = t('reconcileBtn');
+            
+            // Profile and Logout buttons
+            const btnProfile = document.getElementById('btnProfile');
+            if (btnProfile) btnProfile.textContent = t('profileBtn');
+            const btnLogout = document.getElementById('btnLogout');
+            if (btnLogout) btnLogout.textContent = t('logoutBtn');
+            
             if (subtitle) subtitle.textContent = t('subtitle');
             if (balanceLabel) balanceLabel.textContent = '💰 ' + t('balance');
             
@@ -1468,6 +1504,9 @@
             
             // Refresh match display if exists
             if (currentMatch) renderMatch(currentMatch);
+            
+            // Save preference
+            localStorage.setItem('preferredLang', lang);
         }
 
         // Player Selection
@@ -2013,7 +2052,9 @@
         window.onload = function() {
             // Initialize button states - show auth buttons, hide others
             setButtons({ showAuth: true, showUser: false, showConnect: false, connect: false, quickplay: false, balance: false, logs: false });
-            setLang('ru');
+            // Load saved language or default to Russian
+            const savedLang = localStorage.getItem('preferredLang') || 'ru';
+            setLang(savedLang);
             // Initialize chat history structure
             window.chatHistory = { global: [], games: {} };
             gameChatTimeouts = {};
@@ -3675,7 +3716,7 @@
     <div class="modal-overlay" id="loginModal" onclick="closeModal(event)">
         <div class="modal" onclick="event.stopPropagation()">
             <div class="modal-header">
-                <h3>🔑 Вход</h3>
+                <h3 id="loginTitle">🔑 Вход</h3>
                 <button class="modal-close" onclick="hideLoginModal()">×</button>
             </div>
             <div class="modal-body">
