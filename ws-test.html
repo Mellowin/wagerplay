@@ -1592,6 +1592,8 @@
             if (profileGuestText) profileGuestText.textContent = t('profileGuestText');
             const linkPasswordLabel = document.getElementById('linkPasswordLabel');
             if (linkPasswordLabel) linkPasswordLabel.textContent = t('linkPasswordLabel');
+            const linkPassword = document.getElementById('linkPassword');
+            if (linkPassword) linkPassword.setAttribute('placeholder', t('linkPasswordLabel'));
             const linkEmailBtn = document.getElementById('linkEmailBtn');
             if (linkEmailBtn) linkEmailBtn.textContent = t('linkEmailBtn');
             
