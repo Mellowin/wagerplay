@@ -4,6 +4,12 @@ Multiplayer Rock-Paper-Scissors game with matchmaking, real-time gameplay, and b
 
 > Practice project for full-stack development. Backend built with NestJS + PostgreSQL + Redis + Socket.io.
 
+## Demo Video
+
+[![WagerPlay Demo](https://img.youtube.com/vi/s5ViycpnBDM/0.jpg)](https://www.youtube.com/watch?v=s5ViycpnBDM)
+
+Click the image above to watch the demo video showcasing F5 recovery, matchmaking, and real-time gameplay.
+
 ## What I Built
 
 - **Matchmaking** - player queue with 20-second timeout, auto-fill with bots
