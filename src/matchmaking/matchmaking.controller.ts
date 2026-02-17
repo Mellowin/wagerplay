@@ -84,4 +84,13 @@ export class MatchmakingController {
         return result;
     }
 
+    @Get('active')
+    async getActiveState(@Headers('authorization') auth: string) {
+        const userId = getTokenUserId(auth);
+        if (!userId) {
+            return { error: 'Unauthorized' };
+        }
+        return this.mm.getUserActiveState(userId);
+    }
+
 }

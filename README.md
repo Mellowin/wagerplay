@@ -53,7 +53,16 @@ PORT=3000
 NODE_ENV=development
 ```
 
-### 3. Run
+### 3. Environment Setup
+
+Copy `.env.example` to `.env` and fill in your values:
+
+```bash
+cp .env.example .env
+# Edit .env with your settings
+```
+
+### 4. Run
 
 ```bash
 # Infrastructure (PostgreSQL + Redis)
@@ -64,6 +73,23 @@ npm run start:dev
 ```
 
 Open `http://localhost:3000/ws-test.html` to test.
+
+---
+
+## Demo in 60 Seconds
+
+Quick walkthrough to see all features:
+
+1. **Start infrastructure**: `docker-compose up -d`
+2. **Install & run**: `npm install && npm run start:dev`
+3. **Open client**: Navigate to `http://localhost:3000/ws-test.html`
+4. **Login**: Click "Guest Login" (no registration needed)
+5. **Quick Play**: Select 2 players, 100 VP stake, click "Play"
+6. **Open second tab**: Login as another guest, join same queue
+7. **Watch matchmaking**: After 20s or 2 players → countdown → match starts
+8. **Test chat**: Send messages in game chat
+9. **Test F5 recovery**: Refresh page during search or match → state restored
+10. **Make moves**: Rock/Paper/Scissors within 12 seconds
 
 ## How the Game Works
 
@@ -165,6 +191,35 @@ src/
 # Balance check
 GET /wallet/reconcile - compares actual vs expected
 ```
+
+## Roadmap
+
+- [ ] **Reconnect after disconnect** - Handle network interruptions gracefully
+- [ ] **Load testing** - Stress test with 100+ concurrent players
+- [ ] **Horizontal scaling** - Support multiple server instances with Redis pub/sub
+- [ ] **Match history** - Persist finished matches to database for replay/analysis
+
+## Architecture Decisions
+
+**Why Redis for queues?**
+- Fast in-memory operations for queue management
+- Built-in TTL for automatic ticket expiration
+- Easy to scale horizontally later with Redis Cluster
+
+**Why audit_logs?**
+- Financial operations require traceability
+- Helps debug balance discrepancies
+- Immutable history of all transactions
+
+**How I handled race conditions:**
+- Queue locks (`queue:lock:${players}:${stake}`) prevent double match creation
+- Match start locks (`match:startlock:${matchId}`) prevent duplicate match initialization
+- Database transactions with `pessimistic_write` locks for wallet operations
+
+**F5 Recovery design:**
+- `localStorage` for client-side state persistence (settings, UI state)
+- `/matchmaking/active` endpoint for server-side state check
+- Socket.io reconnection with session restoration via `checkActiveMatchOrQueue()`
 
 ## Limitations / Future Improvements
 
