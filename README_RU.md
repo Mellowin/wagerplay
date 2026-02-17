@@ -37,7 +37,7 @@
 
 ```bash
 git clone https://github.com/Mellowin/wagerplay.git
-cd wagerplay/backend
+cd wagerplay
 npm install
 ```
 
@@ -67,6 +67,9 @@ cp .env.example .env
 ```bash
 # Инфраструктура (PostgreSQL + Redis)
 docker-compose up -d
+
+# Установка зависимостей
+npm install
 
 # Сервер разработки
 npm run start:dev

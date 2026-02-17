@@ -37,7 +37,7 @@ Click the image above to watch the demo video showcasing F5 recovery, matchmakin
 
 ```bash
 git clone https://github.com/Mellowin/wagerplay.git
-cd wagerplay/backend
+cd wagerplay
 npm install
 ```
 
@@ -67,6 +67,9 @@ cp .env.example .env
 ```bash
 # Infrastructure (PostgreSQL + Redis)
 docker-compose up -d
+
+# Install dependencies
+npm install
 
 # Development server
 npm run start:dev
