@@ -64,6 +64,23 @@ export class MatchmakingGateway {
       console.error(`[Gateway] Error cleaning matches for user ${userId}:`, e);
     }
 
+    // 🆕 Проверяем, находится ли игрок в очереди (F5 восстановление)
+    try {
+      const queueInfo = await this.mm.findUserTicket(userId);
+      if (queueInfo) {
+        console.log(`[Gateway] User ${userId.slice(0,8)} reconnected while in queue, sending queue:sync`);
+        socket.emit('queue:sync', {
+          playersFound: queueInfo.playersFound,
+          totalNeeded: queueInfo.ticket.playersCount,
+          secondsLeft: queueInfo.secondsLeft,
+          stakeVp: queueInfo.ticket.stakeVp,
+          reconnected: true  // ← флаг что это восстановление после F5
+        });
+      }
+    } catch (e) {
+      console.error(`[Gateway] Error checking queue for ${userId}:`, e);
+    }
+
     socket.emit('connected', { userId });
   }
 
@@ -107,20 +124,31 @@ export class MatchmakingGateway {
 
       setTimeout(async () => {
         try {
-          // если пользователь отключился — не шлём
-          if (!this.userSockets.has(userId)) return;
-
           const fb = await this.mm.fallbackToBotIfTimedOut(res.ticketId);
-          socket.emit('fallback:result', fb);
+          
+          // 🔄 Ищем АКТУАЛЬНЫЙ socket по userId (после F5 может быть новый)
+          const sockets = await this.server.fetchSockets();
+          const currentSocket = sockets.find(s => s.data?.userId === userId);
+          
+          if (!currentSocket) {
+            console.log(`[Gateway] User ${userId.slice(0,8)} disconnected, skipping bot match events`);
+            return;
+          }
+          
+          currentSocket.emit('fallback:result', fb);
 
           // если нашли матч — делаем отсчёт и начинаем
           if (fb.matchId) {
             // Отсчёт 5 секунд перед матчем с ботами
-            socket.emit('match:found', { matchId: fb.matchId, countdown: 5, mode: 'BOT_MATCH' });
+            currentSocket.emit('match:found', { matchId: fb.matchId, countdown: 5, mode: 'BOT_MATCH' });
             
             for (let i = 5; i >= 1; i--) {
               setTimeout(() => {
-                socket.emit('match:countdown', { seconds: i });
+                // 🔄 Снова ищем актуальный socket (могли переподключиться во время отсчёта)
+                this.server.fetchSockets().then(sockets => {
+                  const s = sockets.find(sock => sock.data?.userId === userId);
+                  if (s) s.emit('match:countdown', { seconds: i });
+                });
               }, (5 - i) * 1000);
             }
             
@@ -135,23 +163,32 @@ export class MatchmakingGateway {
               }
               
               try {
+                // 🔄 Ищем актуальный socket ПЕРЕД отправкой событий
+                const sockets = await this.server.fetchSockets();
+                const actualSocket = sockets.find(s => s.data?.userId === userId);
+                
+                if (!actualSocket) {
+                  console.log(`[Gateway] User ${userId.slice(0,8)} disconnected before match start`);
+                  return;
+                }
+                
                 // Устанавливаем таймер для первого хода
                 await this.mm.startMoveTimer(fb.matchId, 12);
                 
-                socket.join(`match:${fb.matchId}`);
+                actualSocket.join(`match:${fb.matchId}`);
                 const m = await this.mm.getMatch(fb.matchId);
                 if (!m || !m.moveDeadline) return;
                 
                 const matchWithDeadline = { ...m, deadline: m.moveDeadline };
-                socket.emit('match:start', matchWithDeadline);
-                socket.emit('match:update', matchWithDeadline);
+                actualSocket.emit('match:start', matchWithDeadline);
+                actualSocket.emit('match:update', matchWithDeadline);
                 
                 // Отправляем таймер отдельным событием
-                socket.emit('match:timer', {
+                actualSocket.emit('match:timer', {
                   type: 'move',
                   deadline: m.moveDeadline,
                   secondsLeft: 12,
-                  round: m.round,  // 👈 Добавляем round
+                  round: m.round,
                 });
                 
                 // Если остались только боты — запускаем пошаговую игру
@@ -164,7 +201,10 @@ export class MatchmakingGateway {
             }, 5000);
           }
         } catch (e: any) {
-          socket.emit('error', { message: e?.message || 'fallback failed' });
+          // 🔄 Ищем актуальный socket для отправки ошибки
+          const sockets = await this.server.fetchSockets();
+          const s = sockets.find(sock => sock.data?.userId === userId);
+          if (s) s.emit('error', { message: e?.message || 'fallback failed' });
         }
       }, 100);  // Вызываем fallback сразу, он сам управляет ожиданием
     }
@@ -222,7 +262,8 @@ export class MatchmakingGateway {
     @MessageBody() body: { matchId: string },
   ) {
     const m = await this.mm.getMatch(body.matchId);
-    socket.emit('match:update', { ...m, deadline: m?.moveDeadline });
+    // 🔄 Отправляем match:get для восстановления после F5
+    socket.emit('match:get', m);
     socket.join(`match:${body.matchId}`);
     return { ok: true };
   }

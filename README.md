@@ -9,6 +9,7 @@ Multiplayer Rock-Paper-Scissors game with matchmaking, real-time gameplay, and b
 - **Matchmaking** - player queue with 20-second timeout, auto-fill with bots
 - **Real-time gameplay** - WebSocket events for moves, timers, round results
 - **Round system** - 12-second turns, auto-move if player doesn't respond, rock-paper-scissors win logic
+- **F5 Recovery** - full state restoration after page refresh during search or match
 - **Wallets** - VP (virtual points) balance, stake freezing, winner payouts
 - **User Profiles** - customizable display name, avatar selection, upload custom avatar image
 - **Statistics** - track games played, wins/losses, VP earned/lost; view other players' stats in chat
@@ -69,6 +70,24 @@ Open `http://localhost:3000/ws-test.html` to test.
 5. 12-second rounds (rock/paper/scissors)
 6. Auto-move: if player doesn't respond in 12s, system makes random move
 7. Losers eliminated, last player standing wins
+
+## F5 Page Refresh Recovery
+
+The game fully supports page refresh (F5) during any game state without losing progress:
+
+| State | Recovery Behavior |
+|-------|-------------------|
+| **Searching** | Timer and queue position restored; match continues normally when found |
+| **In Match** | Reconnects to active match, syncs timer, preserves all game data |
+| **Settings** | Player count (2-5) and stake (100-10000 VP) preserved |
+
+**Technical Implementation:**
+- `localStorage` persists UI state (`uiState`), selected players, and stake amount
+- `/matchmaking/active` endpoint checks for active queue or match on reconnect
+- WebSocket auto-reconnects with session restoration via `checkActiveMatchOrQueue()`
+- "Go to Profile" button disabled during search/match to prevent state corruption
+- Server-side `findUserTicket()` locates player in queue after reconnect
+- Socket events (`queue:sync`, `match:start`) sent to new socket ID after F5
 
 ### Financial Flow
 
@@ -145,7 +164,7 @@ GET /wallet/reconcile - compares actual vs expected
 
 - No load testing (behavior under 100+ players unknown)
 - Not designed for horizontal scaling yet (single server instance)
-- No reconnection on disconnect
 - Email verification requires SMTP configuration
+- AudioContext warnings in browser console (non-critical, audio works after first interaction)
 
 

@@ -1223,6 +1223,7 @@
             
             <button class="btn btn-primary" id="btnBalance" onclick="doCheckBalance()" disabled>💳 Баланс</button>
             <button class="btn btn-primary" id="btnStats" onclick="showStatsModal()" disabled>📊 Статистика</button>
+            <button class="btn btn-primary" id="btnGoToProfile" onclick="goToProfileScreen()" disabled>👤 В ПРОФИЛЬ</button>
                 <button class="btn btn-primary" id="btnLogs" onclick="showLogsInChat()" disabled>📋 Логи</button>
                 <button class="btn btn-secondary" id="btnAudit" onclick="showAuditModal()" disabled>📜 Audit</button>
                 <button class="btn btn-secondary" id="btnReconcile" onclick="showReconcileModal()" disabled>⚖️ Сверка</button>
@@ -1296,6 +1297,7 @@
                 quickplay: '🎮 Играть 4/100',
                 balanceBtn: '💳 Баланс',
             statsBtn: '📊 Статистика',
+                goToProfileBtn: '👤 В ПРОФИЛЬ',
                 waitingGuest: 'Нажмите "Guest Login" чтобы начать',
                 waitingQueue: 'В очереди...',
                 searching: 'Ищем соперников...',
@@ -1335,6 +1337,7 @@
                 logout: 'Выйти',
                 guest: 'Гость',
                 statsBtn: '📊 Статистика',
+                goToProfileBtn: '👤 В ПРОФИЛЬ',
                 logsBtn: '📋 Логи',
                 auditBtn: '📜 Проверка',
                 reconcileBtn: '⚖️ Сверка',
@@ -1408,6 +1411,7 @@
                 logout: 'Logout',
                 guest: 'Guest',
                 statsBtn: '📊 Stats',
+                goToProfileBtn: '👤 TO PROFILE',
                 logsBtn: '📋 Logs',
                 auditBtn: '📜 Audit',
                 reconcileBtn: '⚖️ Reconcile',
@@ -1481,6 +1485,7 @@
                 logout: '退出',
                 guest: '游客',
                 statsBtn: '📊 统计',
+                goToProfileBtn: '👤 个人资料',
                 logsBtn: '📋 日志',
                 auditBtn: '📜 审计',
                 reconcileBtn: '⚖️ 对账',
@@ -1538,6 +1543,8 @@
             // Stats, Logs, Audit, Reconcile buttons
             const btnStats = document.getElementById('btnStats');
             if (btnStats) btnStats.textContent = t('statsBtn');
+            const btnGoToProfile = document.getElementById('btnGoToProfile');
+            if (btnGoToProfile) btnGoToProfile.textContent = t('goToProfileBtn');
             const btnLogs = document.getElementById('btnLogs');
             if (btnLogs) btnLogs.textContent = t('logsBtn');
             const btnAudit = document.getElementById('btnAudit');
@@ -1657,6 +1664,7 @@
         
         function selectStakeDropdown(stake) {
             selectedStake = stake;
+            localStorage.setItem('selectedStake', stake); // 💾 Сохраняем при изменении
             const stakeText = stake >= 1000 ? (stake/1000) + 'K' : stake;
             document.getElementById('stakeBtnText').textContent = stakeText;
             
@@ -1676,6 +1684,7 @@
 
         function selectPlayersDropdown(count) {
             selectedPlayers = count;
+            localStorage.setItem('selectedPlayers', count); // 💾 Сохраняем при изменении
             document.getElementById('playerBadge').textContent = count;
             updateDropdownSelection(count);
             
@@ -2042,11 +2051,11 @@
                     hideLoginModal();
                     showUserInfo(data.email || data.username);
                     log(`✅ Вход выполнен: ${data.email || data.username}`);
-                    setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: true, logs: false });
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     
                     // Загружаем полный профиль с аватаркой
                     await loadProfile();
-                    updateUserInfoAfterLogin();
+                    // updateUserInfoAfterLogin() - НЕ вызываем, иначе покажет ПРОФИЛЬ/ВЫЙТИ
                 } else {
                     // Если email не подтвержден — предлагаем отправить письмо повторно
                     if (data.message && data.message.includes('Email не подтвержден')) {
@@ -2162,6 +2171,14 @@
 
         // Initialize on load
         window.onload = function() {
+            // 🎵 Инициализация аудио при первом клике (требование Chrome)
+            const initAudioOnFirstClick = () => {
+                initAudio().then(() => {
+                    console.log('[Audio] Initialized on first user interaction');
+                });
+            };
+            document.addEventListener('click', initAudioOnFirstClick, { once: true });
+            
             // Load saved language or default to Russian
             const savedLang = localStorage.getItem('preferredLang') || 'ru';
             setLang(savedLang);
@@ -2173,9 +2190,25 @@
                 token = savedToken;
                 userId = savedUserId;
                 log(`🔄 Сессия восстановлена: ${userId.slice(0,8)}...`);
-                setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: true, logs: false });
-                updateUserInfoAfterLogin();
-                doCheckBalance();
+                
+                // Проверяем сохраненное состояние UI
+                const savedUiState = localStorage.getItem('uiState');
+                console.log('[window.onload] savedUiState:', savedUiState);
+                
+                if (savedUiState === 'profile') {
+                    console.log('[window.onload] Restoring PROFILE screen');
+                    setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: false, logs: false });
+                    updateUserInfoAfterLogin();
+                    // В профиле НЕ подключаем WebSocket автоматически
+                } else {
+                    console.log('[window.onload] Restoring GAME screen (default)');
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                    checkActiveMatchOrQueue();
+                    // 🔄 Переподключаем WebSocket только в игре
+                    console.log('[window.onload] Reconnecting WebSocket...');
+                    setTimeout(() => doConnect(), 500);
+                }
+                doCheckBalance(false); // Без звука при восстановлении сессии
             } else {
                 // Initialize button states - show auth buttons, hide others
                 setButtons({ showAuth: true, showUser: false, showConnect: false, connect: false, quickplay: false, balance: false, logs: false });
@@ -2185,18 +2218,37 @@
             gameChatTimeouts = {};
             // Add welcome message
             addChatMessage('system', 'System', 'Welcome to WagerPlay! Select language above.', 'global');
-            // Initialize button text with default player count
+            // 🔄 Восстанавливаем сохраненные настройки игры
+            const savedPlayers = localStorage.getItem('selectedPlayers');
+            const savedStake = localStorage.getItem('selectedStake');
+            
+            if (savedPlayers) {
+                selectedPlayers = parseInt(savedPlayers);
+                console.log('[window.onload] Restored selectedPlayers:', selectedPlayers);
+            }
+            if (savedStake) {
+                selectedStake = parseInt(savedStake);
+                console.log('[window.onload] Restored selectedStake:', selectedStake);
+            }
+            
+            // Initialize button text with saved (or default) values
             const btnText = document.getElementById('playBtnText');
+            const stakeText = selectedStake >= 1000 ? (selectedStake/1000) + 'K' : selectedStake;
             if (btnText) {
-                btnText.textContent = `Играть 2/100`;
+                btnText.textContent = `Играть ${selectedPlayers} | ${stakeText} VP`;
             }
             // Initialize player badge
             const playerBadge = document.getElementById('playerBadge');
             if (playerBadge) {
-                playerBadge.textContent = '2';
+                playerBadge.textContent = selectedPlayers;
+            }
+            // Initialize stake button text
+            const stakeBtnText = document.getElementById('stakeBtnText');
+            if (stakeBtnText) {
+                stakeBtnText.textContent = stakeText;
             }
             // Initialize dropdown selection
-            updateDropdownSelection(2);
+            updateDropdownSelection(selectedPlayers);
             // Close all dropdowns
             document.getElementById('playerDropdown').classList.remove('show');
             document.getElementById('stakeDropdown').classList.remove('show');
@@ -2204,9 +2256,28 @@
             document.getElementById('btnStakeArrow').classList.remove('active');
         };
 
-        // Audio Context for sounds
+        // Audio Context for sounds (ленивое создание)
         const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioContext();
+        let audioCtx = null;
+        let audioInitialized = false;
+
+        // 🎵 Инициализация аудио при первом взаимодействии
+        async function initAudio() {
+            if (audioInitialized) return true;
+            try {
+                if (!audioCtx) {
+                    audioCtx = new AudioContext();
+                }
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+                audioInitialized = true;
+                return true;
+            } catch (e) {
+                // Не выводим ошибку в консоль - просто отключаем звук
+                return false;
+            }
+        }
 
         // Sound effects
         const sounds = {
@@ -2214,6 +2285,7 @@
             error: () => playMelody([200, 150], 0.1),
             matchFound: () => {
                 // 🎮 МАТЧ НАЙДЕН! - радостный звук
+                if (!audioCtx) return;
                 const now = audioCtx.currentTime;
                 const notes = [
                     { f: 440, d: 0.1, t: 0 },
@@ -2236,22 +2308,23 @@
             },
             countdown: (num) => {
                 // ⏱️ Звук отсчёта (бип для каждой цифры)
-                const freq = num <= 3 ? 880 : 660; // Выше звук для последних 3 сек
+                const freq = num <= 3 ? 880 : 660;
                 playTone(freq, 0.15, 'square');
             },
             matchStart: () => playMelody([440, 554, 659, 880], 0.1),
             win: () => {
-                // 🏆 Победная мелодия (фанфары) ~2.5 сек
+                // 🏆 Победная мелодия (фанфары)
+                if (!audioCtx) return;
                 const now = audioCtx.currentTime;
                 const notes = [
-                    { f: 523, d: 0.15, t: 0 },      // C5
-                    { f: 659, d: 0.15, t: 0.15 },   // E5
-                    { f: 784, d: 0.15, t: 0.30 },   // G5
-                    { f: 1047, d: 0.50, t: 0.45 },  // C6 (удлинённая)
-                    { f: 523, d: 0.10, t: 1.0 },    // C5 (эхо)
-                    { f: 659, d: 0.10, t: 1.15 },   // E5
-                    { f: 784, d: 0.10, t: 1.30 },   // G5
-                    { f: 1047, d: 0.80, t: 1.45 }   // C6 (финальная длинная)
+                    { f: 523, d: 0.15, t: 0 },
+                    { f: 659, d: 0.15, t: 0.15 },
+                    { f: 784, d: 0.15, t: 0.30 },
+                    { f: 1047, d: 0.50, t: 0.45 },
+                    { f: 523, d: 0.10, t: 1.0 },
+                    { f: 659, d: 0.10, t: 1.15 },
+                    { f: 784, d: 0.10, t: 1.30 },
+                    { f: 1047, d: 0.80, t: 1.45 }
                 ];
                 notes.forEach(n => {
                     const osc = audioCtx.createOscillator();
@@ -2273,22 +2346,34 @@
             matchStart: () => playMelody([440, 554, 659, 880], 0.1)
         };
 
-        function playTone(freq, duration, type = 'sine') {
+        async function playTone(freq, duration, type = 'sine') {
             if (!soundEnabled) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.frequency.value = freq;
-            osc.type = type;
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-            osc.start(audioCtx.currentTime);
-            osc.stop(audioCtx.currentTime + duration);
+            // 🎵 Инициализируем аудио при первом звуке (после клика)
+            const ready = await initAudio();
+            if (!ready || !audioCtx) return;
+            
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = freq;
+                osc.type = type;
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                // Молча игнорируем ошибки аудио
+            }
         }
 
-        function playMelody(frequencies, duration) {
+        async function playMelody(frequencies, duration) {
             if (!soundEnabled) return;
+            // 🎵 Инициализируем аудио при первом звуке
+            const ready = await initAudio();
+            if (!ready || !audioCtx) return;
+            
             frequencies.forEach((freq, i) => {
                 setTimeout(() => playTone(freq, duration), i * duration * 1000);
             });
@@ -2373,6 +2458,12 @@
             if (authButtons) authButtons.style.display = state.showAuth ? 'flex' : 'none';
             if (userInfo) userInfo.style.display = state.showUser ? 'flex' : 'none';
             
+            // 🎮 Кнопка "К ИГРЕ" показывается только на экране профиля
+            const btnBackToGame = document.getElementById('btnBackToGame');
+            if (btnBackToGame) {
+                btnBackToGame.style.display = state.showUser ? 'inline-block' : 'none';
+            }
+            
             // Phase 2: Connect (after login) - show Connect button, hide game buttons
             if (btnConnect) {
                 btnConnect.style.display = state.showConnect ? 'inline-block' : 'none';
@@ -2388,9 +2479,11 @@
             
             // Enable/disable game buttons
             // 🛡️ Блокируем кнопки ставки и игры если идет поиск (isProcessing.quickplay) ИЛИ уже в матче (activeMatches)
-            const isInMatch = activeMatches.size > 0;
-            const isSearching = isProcessing.quickplay || isInMatch;
-            console.log('[setButtons] isProcessing.quickplay:', isProcessing.quickplay, 'activeMatches:', Array.from(activeMatches), 'isInMatch:', isInMatch, 'isSearching:', isSearching);
+            // 🛡️ ПРОВЕРЯЕМ также localStorage uiState для восстановления после F5
+            const savedUiState = localStorage.getItem('uiState');
+            const isInMatch = activeMatches.size > 0 || savedUiState === 'in-match';
+            const isSearching = isProcessing.quickplay || isInMatch || savedUiState === 'searching';
+            console.log('[setButtons] isProcessing.quickplay:', isProcessing.quickplay, 'activeMatches:', Array.from(activeMatches), 'isInMatch:', isInMatch, 'isSearching:', isSearching, 'uiState:', savedUiState);
             if (btnQuickplay) btnQuickplay.disabled = !state.quickplay || isSearching;
             if (btnPlayArrow) btnPlayArrow.disabled = !state.quickplay || isSearching;
             if (btnStake) btnStake.disabled = !state.quickplay || isSearching;
@@ -2405,6 +2498,13 @@
             if (btnStats) {
                 btnStats.style.display = state.quickplay ? 'inline-block' : 'none';
                 btnStats.disabled = !state.balance;
+            }
+            const btnGoToProfile = document.getElementById('btnGoToProfile');
+            if (btnGoToProfile) {
+                btnGoToProfile.style.display = state.quickplay ? 'inline-block' : 'none';
+                // 🛡️ Блокируем кнопку "В профиль" если идёт поиск или матч
+                btnGoToProfile.disabled = !state.quickplay || isSearching || isInMatch;
+                btnGoToProfile.style.opacity = (isSearching || isInMatch) ? '0.5' : '1';
             }
             if (btnLogs) {
                 btnLogs.style.display = state.quickplay ? 'inline-block' : 'none';
@@ -2474,8 +2574,8 @@
         }
 
         // Check Balance
-        async function doCheckBalance() {
-            sounds.click();
+        async function doCheckBalance(playSound = true) {
+            if (playSound) sounds.click();
             if (!token) {
                 log('❌ Сначала нажмите Guest');
                 return;
@@ -2536,7 +2636,7 @@
                 return;
             }
             isProcessing.connect = true;
-            sounds.click();
+            // sounds.click() убран - doConnect вызывается автоматически при F5
             
             if (!token) {
                 log('❌ Сначала получите Guest token');
@@ -2554,11 +2654,28 @@
             socket.on("connected", (m) => {
                 isProcessing.connect = false;
                 log(`🔗 WebSocket подключен: ${m.userId.slice(0,8)}...`);
+                
+                // 🔄 После F5 восстанавливаем состояние игры/поиска если нужно
+                const savedUiState = localStorage.getItem('uiState');
+                if (savedUiState === 'in-match' && matchId) {
+                    // Переподключаемся к матчу
+                    socket.emit('match:join', { matchId });
+                    socket.emit('match:get', { matchId });
+                    log('🔄 Переподключение к матчу после F5');
+                } else if (savedUiState === 'searching') {
+                    // Запрашиваем состояние очереди
+                    log('🔄 Восстановление поиска соперников...');
+                } else if (activeMatches.size === 0 && !isProcessing.quickplay) {
+                    // ✅ Устанавливаем uiState в 'game' когда подключились и нет активной игры
+                    console.log('[socket.on connected] Setting uiState to game');
+                    localStorage.setItem('uiState', 'game');
+                }
+                
                 // 🛡️ Не разблокируем кнопки если игрок уже в матче
-                if (activeMatches.size === 0) {
+                if (activeMatches.size === 0 && savedUiState !== 'in-match' && savedUiState !== 'searching') {
                     setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 }
-                sounds.matchStart();
+                // sounds.matchStart() убран - вызывается автоматически при F5
             });
 
             socket.on("matches:cleanup", (data) => {
@@ -2574,6 +2691,8 @@
                 if (m.status === 'ALREADY_IN_QUEUE') {
                     log('⚠️ Already in queue!');
                     isProcessing.quickplay = false;
+                    localStorage.removeItem('searchStartTime');
+                    localStorage.setItem('uiState', 'game');
                     setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     showWaiting(t('waitingQueue'), true, 5);
                     return;
@@ -2589,6 +2708,7 @@
                 if (m.matchId) {
                     matchId = m.matchId;
                     isProcessing.quickplay = false;
+                    // Матч начинается - uiState установится в 'in-match' в match:start
                     setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     // Reset button text
                     const pbt5 = document.getElementById('playBtnText');
@@ -2602,8 +2722,18 @@
                 showWaiting(`Ищем соперников (${m.playersFound || 1}/${selectedPlayers})...`, true, m.seconds);
             });
 
-            // Синхронизация таймера очереди (когда присоединяется новый игрок)
+            // Синхронизация таймера очереди (когда присоединяется новый игрок или F5 восстановление)
             socket.on("queue:sync", (m) => {
+                console.log('[queue:sync]', m);
+                
+                // 🔄 F5 восстановление: устанавливаем состояние поиска
+                if (m.reconnected) {
+                    console.log('[queue:sync] Reconnected while in queue, restoring state');
+                    isProcessing.quickplay = true;
+                    localStorage.setItem('uiState', 'searching');
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, quickplay: true, cancel: true });
+                }
+                
                 log(`🔄 Синхронизация: ${m.playersFound}/${m.totalNeeded} игроков, осталось ${m.secondsLeft}сек`);
                 // Обновляем UI с синхронизированным временем
                 showWaiting(`Ищем соперников (${m.playersFound}/${m.totalNeeded})...`, true, m.secondsLeft);
@@ -2613,6 +2743,8 @@
                 stopCountdown();
                 log(`🤖 Fallback: ${m.status}`);
                 isProcessing.quickplay = false;
+                localStorage.removeItem('searchStartTime');
+                localStorage.setItem('uiState', 'game');
                 setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 const pbt6 = document.getElementById('playBtnText');
                 if (pbt6) pbt6.textContent = t('quickplay');
@@ -2739,6 +2871,8 @@
                 console.log('[match:start] Added to activeMatches:', m.matchId, 'Size:', activeMatches.size);
                 
                 // 🛡️ Блокируем кнопки сразу при начале матча
+                localStorage.setItem('uiState', 'in-match');
+                localStorage.removeItem('searchStartTime'); // Очищаем время поиска
                 setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 
                 // 🧹 Сбрасываем дедупликацию раундов и таймер для нового матча
@@ -2766,6 +2900,46 @@
                     const deadline = m.moveDeadline;
                     const secondsLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
                     console.log('[match:start] Starting timer with secondsLeft:', secondsLeft, 'for round', m.round);
+                    if (secondsLeft > 0) {
+                        startMoveCountdown(secondsLeft, m.round, deadline);
+                    }
+                }
+            });
+
+            // 🔄 Восстановление матча после F5
+            socket.on("match:get", (m) => {
+                console.log('[CLIENT match:get]', {matchId: m.matchId, round: m.round, status: m.status});
+                if (!m || m.status === 'FINISHED' || m.status === 'CANCELLED') {
+                    log('❌ Матч завершен или отменен');
+                    localStorage.setItem('uiState', 'game');
+                    isProcessing.quickplay = false;
+                    activeMatches.delete(m?.matchId);
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                    return;
+                }
+                
+                log('🔄 Получено состояние матча');
+                currentMatch = m;
+                matchId = m.matchId;
+                activeMatches.add(m.matchId);
+                localStorage.setItem('uiState', 'in-match');
+                
+                // 🛡️ Блокируем кнопки
+                setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                
+                // Рендерим матч
+                if (m.playerNames) {
+                    Object.assign(playerNames, m.playerNames);
+                }
+                renderMatch(m);
+                showChat();
+                
+                // ⏱️ Запускаем таймер если есть deadline
+                if (m.moveDeadline) {
+                    const now = Date.now();
+                    const deadline = m.moveDeadline;
+                    const secondsLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
+                    console.log('[match:get] Starting timer with secondsLeft:', secondsLeft, 'for round', m.round);
                     if (secondsLeft > 0) {
                         startMoveCountdown(secondsLeft, m.round, deadline);
                     }
@@ -2863,6 +3037,7 @@
                 if (m.status === 'FINISHED') {
                     isProcessing.quickplay = false;
                     activeMatches.delete(m.matchId);  // 🛡️ Удаляем завершенный матч из активных
+                    localStorage.setItem('uiState', 'game');  // 🛡️ Сбрасываем состояние UI
                     console.log('[match:update FINISHED] Removed from activeMatches:', m.matchId, 'Size:', activeMatches.size);
                     setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     const qpBtn3 = document.getElementById('btnQuickplay');
@@ -2909,6 +3084,7 @@
             socket.on("error", (m) => {
                 isProcessing.move = false;
                 isProcessing.quickplay = false;
+                localStorage.setItem('uiState', 'game');
                 setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 const qpBtn4 = document.getElementById('btnQuickplay');
                 const pbt4 = document.getElementById('playBtnText');
@@ -2937,6 +3113,8 @@
                 return;
             }
             isProcessing.quickplay = true;
+            localStorage.setItem('uiState', 'searching');
+            localStorage.setItem('searchStartTime', Date.now().toString());
             sounds.click();
             
             // 🛡️ Обновляем UI чтобы заблокировать кнопки
@@ -2945,6 +3123,7 @@
             if (!socket) {
                 log('❌ Сначала подключитесь');
                 isProcessing.quickplay = false;
+                localStorage.setItem('uiState', 'game');
                 setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                 return;
             }
@@ -3327,6 +3506,7 @@
                 setTimeout(doCheckBalance, 500);
                 
                 // Clear current match state
+                localStorage.setItem('uiState', 'game');
                 currentMatch = null;
             }
 
@@ -3346,6 +3526,97 @@
             isGuest: true
         };
         let selectedAvatarId = '';
+
+        function goToProfileScreen() {
+            console.log('[goToProfileScreen] START');
+            localStorage.setItem('uiState', 'profile');
+            console.log('[goToProfileScreen] uiState set to: profile');
+            setButtons({ 
+                showAuth: false, 
+                showUser: true, 
+                showConnect: true, 
+                connect: true, 
+                quickplay: false, 
+                balance: false, 
+                logs: false 
+            });
+            updateUserInfoAfterLogin();
+            console.log('[goToProfileScreen] DONE');
+        }
+
+        function goToGameScreen() {
+            // Показываем игровой экран
+            localStorage.setItem('uiState', 'game');
+            setButtons({ 
+                showAuth: false, 
+                showUser: false, 
+                showConnect: false, 
+                connect: false, 
+                quickplay: true, 
+                balance: true, 
+                logs: true 
+            });
+        }
+
+        async function checkActiveMatchOrQueue() {
+            console.log('[checkActiveMatchOrQueue] START, token:', token ? 'yes' : 'no');
+            if (!token) {
+                console.log('[checkActiveMatchOrQueue] No token, returning');
+                return;
+            }
+            
+            try {
+                console.log('[checkActiveMatchOrQueue] Fetching /matchmaking/active...');
+                const response = await fetch('/matchmaking/active', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('[checkActiveMatchOrQueue] Response:', data);
+                    
+                    if (data.inQueue) {
+                        console.log('[checkActiveMatchOrQueue] User is in queue:');
+                        console.log(`  - playersFound: ${data.playersFound}/${data.totalNeeded}`);
+                        console.log(`  - secondsLeft from server: ${data.secondsLeft}`);
+                        console.log(`  - queueTime from server: ${data.queueTime}`);
+                        
+                        // Восстанавливаем состояние поиска
+                        localStorage.setItem('uiState', 'searching');
+                        isProcessing.quickplay = true;
+                        // 🛡️ БЛОКИРУЕМ кнопки игры во время поиска
+                        setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                        
+                        // Используем данные с сервера
+                        const remainingSeconds = data.secondsLeft || 20;
+                        const playersFound = data.playersFound || 1;
+                        const totalNeeded = data.totalNeeded || 2;
+                        
+                        // Показываем экран поиска с таймером
+                        showWaiting(`Ищем соперников (${playersFound}/${totalNeeded})...`, true, remainingSeconds);
+                        log(`🔄 Восстановлен поиск: ${playersFound}/${totalNeeded}, осталось ${remainingSeconds}с`);
+                    } else if (data.activeMatch) {
+                        // Восстанавливаем состояние игры
+                        localStorage.setItem('uiState', 'in-match');
+                        currentMatch = data.activeMatch;
+                        matchId = data.activeMatch.matchId;
+                        activeMatches.add(matchId);
+                        // 🛡️ БЛОКИРУЕМ кнопки игры во время матча
+                        setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                        renderMatch(data.activeMatch);
+                        log('🔄 Восстановлен активный матч');
+                        
+                        // 🔄 Переподключаем WebSocket к комнате матча
+                        if (socket && matchId) {
+                            socket.emit('match:join', { matchId });
+                            console.log('[F5 Restore] Rejoined match room:', matchId);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('checkActiveMatchOrQueue error:', e);
+            }
+        }
 
         function showProfileModal() {
             document.getElementById('profileModal').classList.add('show');

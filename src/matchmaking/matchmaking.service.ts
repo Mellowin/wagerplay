@@ -451,10 +451,85 @@ export class MatchmakingService {
         return JSON.parse(raw) as Ticket;
     }
 
+    // 🔍 Найти тикет пользователя в любой очереди
+    async findUserTicket(userId: string): Promise<{ ticket: Ticket; queueKey: string; playersFound: number; secondsLeft: number } | null> {
+        for (const playersCount of ALLOWED_PLAYERS) {
+            for (const stakeVp of ALLOWED_STAKES) {
+                const q = this.qKey(playersCount, stakeVp);
+                const ticketIds = await this.redis.lrange(q, 0, -1);
+                
+                for (const tId of ticketIds) {
+                    const ticket = await this.getTicket(tId);
+                    if (ticket && ticket.userId === userId) {
+                        const queueTime = Math.floor((Date.now() - ticket.createdAt) / 1000);
+                        const secondsLeft = Math.max(0, 20 - queueTime);
+                        const playersFound = ticketIds.length;
+                        return { ticket, queueKey: q, playersFound, secondsLeft };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     async getMatch(matchId: string) {
         const raw = await this.redis.get(this.matchKey(matchId));
         if (!raw) return null;
         return JSON.parse(raw) as Match;
+    }
+
+    // 🔄 Проверяет есть ли пользователь в очереди или активном матче
+    async getUserActiveState(userId: string): Promise<{ inQueue: boolean; queueTime?: number; playersFound?: number; totalNeeded?: number; secondsLeft?: number; activeMatch?: Match }> {
+        console.log(`[getUserActiveState] Checking user: ${userId.slice(0, 8)}...`);
+        
+        // 1. Проверяем все очереди на наличие тикета пользователя
+        for (const playersCount of ALLOWED_PLAYERS) {
+            for (const stakeVp of ALLOWED_STAKES) {
+                const q = this.qKey(playersCount, stakeVp);
+                const ticketIds = await this.redis.lrange(q, 0, -1);
+                
+                if (ticketIds.length > 0) {
+                    console.log(`[getUserActiveState] Queue ${q}: ${ticketIds.length} tickets`);
+                }
+                
+                for (const tId of ticketIds) {
+                    const ticket = await this.getTicket(tId);
+                    if (ticket && ticket.userId === userId) {
+                        const now = Date.now();
+                        const queueTime = Math.floor((now - ticket.createdAt) / 1000);
+                        const secondsLeft = Math.max(0, 20 - queueTime);
+                        const playersFound = ticketIds.length;
+                        const totalNeeded = playersCount;
+                        
+                        console.log(`[getUserActiveState] FOUND user in queue:`);
+                        console.log(`  - queueKey: ${q}`);
+                        console.log(`  - playersFound: ${playersFound}/${totalNeeded}`);
+                        console.log(`  - queueTime: ${queueTime}s`);
+                        console.log(`  - secondsLeft: ${secondsLeft}s`);
+                        
+                        return { inQueue: true, queueTime, playersFound, totalNeeded, secondsLeft };
+                    }
+                }
+            }
+        }
+
+        // 2. Проверяем активные матчи
+        // Получаем все ключи матчей
+        const matchKeys = await this.redis.keys('match:*');
+        for (const key of matchKeys) {
+            const raw = await this.redis.get(key);
+            if (raw) {
+                const match: Match = JSON.parse(raw);
+                // Проверяем что матч активен (не FINISHED и не CANCELLED)
+                if (match.playerIds?.includes(userId) && 
+                    match.status !== 'FINISHED' && 
+                    match.status !== 'CANCELLED') {
+                    return { inQueue: false, activeMatch: match };
+                }
+            }
+        }
+
+        return { inQueue: false };
     }
 
     async getQueueLength(playersCount: number, stakeVp: number): Promise<number> {
