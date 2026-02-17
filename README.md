@@ -100,7 +100,7 @@ Quick walkthrough to see all features:
 
 ## F5 Page Refresh Recovery
 
-The game fully supports page refresh (F5) during any game state without losing progress:
+The game supports page refresh (F5) during any game state without losing progress:
 
 | State | Recovery Behavior |
 |-------|-------------------|
