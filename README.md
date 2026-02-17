@@ -33,49 +33,41 @@ Click the image above to watch the demo video showcasing F5 recovery, matchmakin
 
 ## Quick Start
 
-### 1. Install
-
+### 1) Install
 ```bash
 git clone https://github.com/Mellowin/wagerplay.git
 cd wagerplay
 npm install
 ```
 
-### 2. Environment
+### 2) Environment
 
-Create `.env`:
+Create `.env` (or copy from `.env.example`) and set values for Postgres / Redis / JWT:
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/wagerplay
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/wagerplay
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=your-secret-key
 PORT=3000
 NODE_ENV=development
 ```
 
-### 3. Environment Setup
-
-Copy `.env.example` to `.env` and fill in your values:
-
+### 3) Environment Setup
 ```bash
 cp .env.example .env
-# Edit .env with your settings
+# then edit .env
 ```
 
-### 4. Run
-
+### 4) Run
 ```bash
 # Infrastructure (PostgreSQL + Redis)
 docker-compose up -d
-
-# Install dependencies
-npm install
 
 # Development server
 npm run start:dev
 ```
 
-Open `http://localhost:3000/ws-test.html` to test.
+Open http://localhost:3000/ws-test.html to test WebSocket connection.
 
 ---
 
@@ -230,5 +222,9 @@ GET /wallet/reconcile - compares actual vs expected
 - Not designed for horizontal scaling yet (single server instance)
 - Email verification requires SMTP configuration
 - AudioContext warnings in browser console (non-critical, audio works after first interaction)
+
+## Repo housekeeping
+
+- `README.md.backup` and `server.err` are local artifacts and can be removed from the repository (or moved to `/docs`) to keep the repo clean.
 
 
