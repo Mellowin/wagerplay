@@ -1738,24 +1738,171 @@
             }
         }
         
-        /* Extra small devices */
-        @media (max-width: 375px) {
+        /* ==========================================
+           📱 PHONE-SPECIFIC BREAKPOINTS
+           ========================================== */
+        
+        /* iPhone SE, Small Android (320px-360px) */
+        @media (max-width: 360px) {
+            .header-row {
+                margin-top: 55px;
+            }
+            
             .header-row h1 {
-                font-size: 1.2em;
+                font-size: 1.1em;
+            }
+            
+            .subtitle {
+                font-size: 0.8em;
             }
             
             .balance-display {
-                font-size: 1.6em;
+                font-size: 1.4em;
+            }
+            
+            .btn-play-main, .btn-stake-main {
+                padding: 6px 8px;
+                font-size: 0.75em;
+            }
+            
+            .auth-buttons .btn {
+                min-width: 85px;
+                padding: 6px 8px;
+                font-size: 0.8em;
+            }
+            
+            .user-info .btn {
+                min-width: 70px;
+                padding: 5px 6px;
+                font-size: 0.7em;
+            }
+            
+            .lang-dropdown-btn {
+                font-size: 0.75em;
+                padding: 5px 8px;
+            }
+            
+            .burger-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 1em;
+            }
+            
+            .sound-toggle {
+                width: 32px;
+                height: 32px;
+                font-size: 1em;
+            }
+        }
+        
+        /* iPhone 12/13/14, Standard Android (361px-390px) */
+        @media (min-width: 361px) and (max-width: 390px) {
+            .header-row h1 {
+                font-size: 1.25em;
+            }
+            
+            .balance-display {
+                font-size: 1.5em;
             }
             
             .btn-play-main, .btn-stake-main {
                 padding: 8px 10px;
                 font-size: 0.8em;
             }
+        }
+        
+        /* iPhone 14 Pro Max, Large Android (391px-430px) */
+        @media (min-width: 391px) and (max-width: 430px) {
+            .header-row h1 {
+                font-size: 1.3em;
+            }
             
-            .user-info .btn {
-                padding: 5px 8px;
-                font-size: 0.75em;
+            .balance-display {
+                font-size: 1.7em;
+            }
+            
+            .btn-play-main, .btn-stake-main {
+                padding: 9px 12px;
+                font-size: 0.85em;
+            }
+        }
+        
+        /* Tablets Portrait (601px-768px) */
+        @media (min-width: 601px) and (max-width: 768px) {
+            .container {
+                max-width: 100%;
+                padding: 15px;
+            }
+            
+            .header-row {
+                margin-top: 70px;
+            }
+            
+            .game-controls-row {
+                gap: 15px;
+            }
+        }
+        
+        /* Tablets Landscape, Small Desktops (769px-1024px) */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .container {
+                max-width: 700px;
+            }
+        }
+        
+        /* iPhone Safe Area (notch support) */
+        @supports (padding-top: env(safe-area-inset-top)) {
+            @media (max-width: 600px) {
+                .lang-dropdown-container,
+                .burger-menu-container {
+                    top: calc(10px + env(safe-area-inset-top));
+                }
+                
+                .sound-toggle {
+                    top: calc(10px + env(safe-area-inset-top));
+                }
+                
+                .online-counter {
+                    top: calc(50px + env(safe-area-inset-top));
+                }
+                
+                .header-row {
+                    margin-top: calc(60px + env(safe-area-inset-top));
+                }
+                
+                .container {
+                    padding-bottom: env(safe-area-inset-bottom);
+                }
+            }
+        }
+        
+        /* Landscape orientation on phones */
+        @media (max-width: 896px) and (orientation: landscape) {
+            .header-row {
+                margin-top: 50px;
+            }
+            
+            .lang-dropdown-container,
+            .burger-menu-container,
+            .sound-toggle {
+                top: 5px;
+            }
+            
+            .online-counter {
+                top: 40px;
+            }
+            
+            .game-controls-row {
+                flex-wrap: nowrap;
+            }
+            
+            .balance-card {
+                padding: 12px;
+                margin-bottom: 10px;
+            }
+            
+            .chat-container {
+                height: 150px;
             }
         }
     </style>
