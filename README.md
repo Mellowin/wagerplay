@@ -40,6 +40,14 @@ Real-time multiplayer Rock-Paper-Scissors gaming platform with matchmaking, bett
 - **Mass Assignment Protection** - Input sanitization
 - **Audit Logging** - Financial operation tracking
 - **Race Condition Handling** - PostgreSQL Advisory Locks + Redis locks
+- **Frozen Stake Protection** - Auto-return after 5 min timeout
+- **JWT Authentication** - Secure token-based auth
+
+### DevOps & Monitoring
+- **Swagger API Docs** - Interactive documentation at `/api/docs`
+- **Docker** - Containerized deployment
+- **CI/CD Pipeline** - GitHub Actions for testing
+- **Health Checks** - Server status endpoint
 
 ## Tech Stack
 
@@ -49,8 +57,9 @@ Real-time multiplayer Rock-Paper-Scissors gaming platform with matchmaking, bett
 | **Database** | PostgreSQL + TypeORM |
 | **Cache/Queues** | Redis (ioredis) |
 | **Real-time** | Socket.io |
-| **Testing** | Jest + Supertest |
-| **DevOps** | Docker + Docker Compose |
+| **Testing** | Jest + Supertest + k6 (load testing) |
+| **DevOps** | Docker + Docker Compose + GitHub Actions |
+| **Documentation** | Swagger/OpenAPI |
 
 ## Project Structure
 
@@ -116,8 +125,9 @@ NODE_ENV=development
 # Run E2E tests
 npm run test:e2e
 
-# Current coverage: 56/92 tests passing
-# Tests cover: matchmaking, game flow, financial transactions, security
+# Current coverage: 80+ tests
+# Tests cover: matchmaking, game flow, financial transactions, security,
+# player combinations (2-5 players), race conditions, IDOR protection
 ```
 
 ### Test Categories
@@ -126,16 +136,22 @@ npm run test:e2e
 - **IDOR** - Resource access control
 - **State Machine** - Match lifecycle, transitions
 
-## API Overview
+## API Documentation
+
+Interactive Swagger documentation available at: `http://localhost:3000/api/docs`
 
 ### REST Endpoints
 ```
 POST   /auth/guest              # Guest login
+POST   /auth/register           # User registration
+POST   /auth/login              # User login
 POST   /matchmaking/quickplay   # Join queue
 POST   /matchmaking/match/:id/move  # Submit move
 GET    /wallet                   # Get balance
+POST   /wallet/reset-frozen     # Return frozen stake
 GET    /wallet/reconcile         # Verify integrity
 GET    /matchmaking/history      # Match history
+GET    /health                   # Server health check
 ```
 
 ### WebSocket Events
@@ -163,7 +179,9 @@ match:round_result  # Round resolution
 ```
 stake: 100 VP
   ↓
-frozen: 100 VP (locked)
+frozen: 100 VP (locked for match)
+  ↓
+[If match doesn't start in 5 min → auto-return]
   ↓
 pot: 200 VP (2 players)
   ↓
@@ -172,9 +190,37 @@ fee: 10 VP (5% house)
 payout: 190 VP → winner
 ```
 
+## Bot System
+
+Bots automatically fill incomplete matches:
+- **Trigger**: If queue has < required players after 20s
+- **Behavior**: Realistic nicknames, random moves
+- **Combinations Tested**: 1+ bots, 2+ bots, 3+ bots, 4+ bots, 5 real players
+
 ## Key Technical Decisions
 
 ### Why Redis for Matchmaking?
+- O(1) queue operations
+- Built-in TTL for ticket expiration
+- Atomic operations via Lua scripts
+- Perfect for transient match state
+- Keys: `queue:{players}:{stake}`, `ticket:{id}`, `match:{id}`
+
+### Frozen Stake Protection
+```typescript
+// 1. On stake freeze - save to Redis with timestamp
+await redis.set(`frozen:${userId}`, JSON.stringify({
+  userId, stakeVp, frozenAt: Date.now()
+}), 'EX', 600);
+
+// 2. Cleanup job every 5 minutes
+if (frozenTime > 5 * 60 * 1000 && !hasActiveMatch) {
+  await unfreezeStake(userId, stakeVp); // Auto-return
+}
+
+// 3. User can manually return anytime
+POST /wallet/reset-frozen
+```
 - O(1) queue operations
 - Built-in TTL for ticket expiration
 - Atomic operations via Lua scripts
