@@ -81,42 +81,6 @@ export class MatchmakingGateway {
       console.error(`[Gateway] Error checking queue for ${userId}:`, e);
     }
 
-    // 🆕 Проверяем, находится ли игрок в матче (F5 восстановление)
-    try {
-      const activeMatch = await this.mm.getUserActiveState(userId);
-      if (activeMatch.activeMatch) {
-        const match = activeMatch.activeMatch;
-        const elapsedMs = Date.now() - match.createdAt;
-        const elapsedSec = Math.floor(elapsedMs / 1000);
-        
-        // Если матч только что создан (< 5 сек) — показываем отсчёт
-        if (elapsedSec < 5) {
-          const remainingSec = 5 - elapsedSec;
-          console.log(`[Gateway] User ${userId.slice(0,8)} reconnected during countdown (${remainingSec}s left)`);
-          
-          socket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'RECONNECT' });
-          
-          // Отправляем оставшиеся секунды отсчёта
-          for (let i = remainingSec; i >= 1; i--) {
-            setTimeout(() => {
-              socket.emit('match:countdown', { seconds: i });
-            }, (remainingSec - i) * 1000);
-          }
-          
-          // После отсчёта отправляем match:start
-          setTimeout(async () => {
-            socket.join(`match:${match.matchId}`);
-            const m = await this.mm.getMatch(match.matchId);
-            if (m && m.moveDeadline) {
-              socket.emit('match:start', { ...m, deadline: m.moveDeadline });
-            }
-          }, remainingSec * 1000);
-        }
-      }
-    } catch (e) {
-      console.error(`[Gateway] Error checking active match for ${userId}:`, e);
-    }
-
     socket.emit('connected', { userId });
   }
 
@@ -158,10 +122,7 @@ export class MatchmakingGateway {
       socket.emit('queue:waiting', { seconds: secondsLeft, playersFound: queueLen });
       console.log(`[Gateway] User ${userId.slice(0,8)} in queue, ${queueLen}/${body.playersCount} players, ${secondsLeft}s left`);
 
-      // ⏱️ Запускаем fallback через secondsLeft секунд (20 сек по умолчанию)
-      console.log(`[Gateway] Scheduling fallback in ${secondsLeft}s for ticket ${res.ticketId.slice(0,8)}`);
       setTimeout(async () => {
-        console.log(`[Gateway] Fallback timer fired for ticket ${res.ticketId.slice(0,8)}`);
         try {
           const fb = await this.mm.fallbackToBotIfTimedOut(res.ticketId);
           
@@ -245,7 +206,7 @@ export class MatchmakingGateway {
           const s = sockets.find(sock => sock.data?.userId === userId);
           if (s) s.emit('error', { message: e?.message || 'fallback failed' });
         }
-      }, secondsLeft * 1000);  // ⏱️ Ждём 20 секунд (или secondsLeft от сервера)
+      }, 100);  // Вызываем fallback сразу, он сам управляет ожиданием
     }
 
     // Если матч готов сразу — НИЧЕГО НЕ ДЕЛАЕМ здесь
@@ -301,17 +262,8 @@ export class MatchmakingGateway {
     @MessageBody() body: { matchId: string },
   ) {
     const m = await this.mm.getMatch(body.matchId);
-    if (m) {
-      // 🆕 Добавляем createdAt если его нет (для F5 восстановления отсчёта)
-      const matchWithCreated = {
-        ...m,
-        createdAt: m.createdAt || Date.now() // Запасной вариант
-      };
-      console.log(`[Gateway] match:get for ${body.matchId.slice(0,8)}, createdAt: ${matchWithCreated.createdAt}, elapsed: ${Date.now() - matchWithCreated.createdAt}ms`);
-      socket.emit('match:get', matchWithCreated);
-    } else {
-      socket.emit('match:get', null);
-    }
+    // 🔄 Отправляем match:get для восстановления после F5
+    socket.emit('match:get', m);
     socket.join(`match:${body.matchId}`);
     return { ok: true };
   }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { MatchmakingService } from './matchmaking.service';
 import { SubmitMoveDto } from './dto/submit-move.dto';
 
@@ -93,6 +93,23 @@ export class MatchmakingController {
             return { error: 'Unauthorized' };
         }
         return this.mm.getUserActiveState(userId);
+    }
+
+    @Get('online')
+    async getOnlineCount() {
+        return this.mm.getOnlineCount();
+    }
+
+    @Get('history')
+    async getMatchHistory(
+        @Headers('authorization') auth: string,
+        @Query('userId') userId: string,
+    ) {
+        const tokenUserId = getTokenUserId(auth);
+        if (!tokenUserId || tokenUserId !== userId) {
+            return { error: 'Unauthorized' };
+        }
+        return this.mm.getUserMatchHistory(userId);
     }
 
 }

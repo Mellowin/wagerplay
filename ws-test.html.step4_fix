@@ -341,36 +341,6 @@
             transform: scale(1.1);
         }
 
-        /* Online Counter */
-        .online-counter {
-            position: fixed;
-            top: 75px;
-            right: 20px;
-            z-index: 999;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(0,0,0,0.3);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.85em;
-            color: white;
-            backdrop-filter: blur(10px);
-        }
-
-        .online-dot {
-            width: 8px;
-            height: 8px;
-            background: #4ade80;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
         /* Burger Menu */
         .burger-menu-container {
             position: fixed;
@@ -413,55 +383,6 @@
         .burger-menu.show {
             display: block;
             animation: dropdownSlide 0.2s ease;
-        }
-
-        /* History Styles */
-        .history-item {
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 12px;
-            background: rgba(255,255,255,0.05);
-            border-left: 4px solid;
-        }
-
-        .history-item.win {
-            border-left-color: #4ade80;
-            background: rgba(74, 222, 128, 0.1);
-        }
-
-        .history-item.loss {
-            border-left-color: #f87171;
-            background: rgba(248, 113, 113, 0.1);
-        }
-
-        .history-result {
-            font-weight: bold;
-            font-size: 1.1em;
-            margin-bottom: 5px;
-        }
-
-        .history-item.win .history-result {
-            color: #4ade80;
-        }
-
-        .history-item.loss .history-result {
-            color: #f87171;
-        }
-
-        .history-details {
-            font-size: 0.9em;
-            color: rgba(255,255,255,0.8);
-            line-height: 1.5;
-        }
-
-        .empty-state, .loading, .error {
-            text-align: center;
-            padding: 40px;
-            color: rgba(255,255,255,0.6);
-        }
-
-        .error {
-            color: #f87171;
         }
 
         /* Language Dropdown Styles */
@@ -1271,12 +1192,6 @@
 <body>
     <button class="sound-toggle" onclick="toggleSound()" title="Вкл/выкл звук">🔊</button>
 
-    <!-- Online Counter -->
-    <div class="online-counter" id="onlineCounter">
-        <div class="online-dot"></div>
-        <span id="onlineCount">-</span>
-    </div>
-
     <!-- Burger Menu -->
     <div class="burger-menu-container">
         <button class="burger-btn" onclick="toggleMenu()" title="Меню">☰</button>
@@ -1300,10 +1215,6 @@
             <div class="dropdown-item" onclick="showReconcileModal(); closeMenu();">
                 <span>⚖️</span>
                 <span id="burgerReconcileText">Сверка</span>
-            </div>
-            <div class="dropdown-item" onclick="showHistoryModal(); closeMenu();">
-                <span>🎮</span>
-                <span id="burgerHistoryText">История</span>
             </div>
         </div>
     </div>
@@ -2292,12 +2203,11 @@
                     hideLoginModal();
                     showUserInfo(data.email || data.username);
                     log(`✅ Вход выполнен: ${data.email || data.username}`);
-                    // 🛡️ После логина показываем кнопку "Подключиться", не "Играть"
-                    setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: false, logs: false });
+                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
                     
                     // Загружаем полный профиль с аватаркой
                     await loadProfile();
-                    updateUserInfoAfterLogin();
+                    // updateUserInfoAfterLogin() - НЕ вызываем, иначе покажет ПРОФИЛЬ/ВЫЙТИ
                 } else {
                     // Если email не подтвержден — предлагаем отправить письмо повторно
                     if (data.message && data.message.includes('Email не подтвержден')) {
@@ -2645,66 +2555,6 @@
             document.querySelector('.sound-toggle').textContent = soundEnabled ? '🔊' : '🔇';
         }
 
-        // Online Counter
-        async function updateOnlineCount() {
-            try {
-                const res = await fetch(`${API_URL}/matchmaking/online`);
-                const data = await res.json();
-                document.getElementById('onlineCount').textContent = data.count || 0;
-            } catch (e) {
-                console.log('Failed to update online count');
-            }
-        }
-        
-        // Update online count every 10 seconds
-        setInterval(updateOnlineCount, 10000);
-        // Initial update
-        setTimeout(updateOnlineCount, 1000);
-
-        // History Modal
-        async function showHistoryModal() {
-            if (!userId) {
-                alert('Сначала войдите в систему');
-                return;
-            }
-            
-            const modal = document.getElementById('historyModal');
-            const list = document.getElementById('historyList');
-            list.innerHTML = '<div class="loading">Загрузка...</div>';
-            modal.classList.add('show');
-            
-            try {
-                const res = await fetch(`${API_URL}/matchmaking/history?userId=${userId}`, {
-                    headers: { 'Authorization': token }
-                });
-                const data = await res.json();
-                
-                if (!data.matches || data.matches.length === 0) {
-                    list.innerHTML = '<div class="empty-state">История матчей пуста</div>';
-                    return;
-                }
-                
-                list.innerHTML = data.matches.map(m => {
-                    const isWin = m.winnerId === userId;
-                    const profit = isWin ? (m.payout - m.stake) : -m.stake;
-                    const date = new Date(m.finishedAt).toLocaleString();
-                    
-                    return `
-                        <div class="history-item ${isWin ? 'win' : 'loss'}">
-                            <div class="history-result">${isWin ? '✅ Победа' : '❌ Поражение'}</div>
-                            <div class="history-details">
-                                <div>${date}</div>
-                                <div>Ставка: ${m.stake} VP | ${isWin ? 'Прибыль' : 'Проигрыш'}: ${profit > 0 ? '+' : ''}${profit} VP</div>
-                                <div>Раундов: ${m.rounds}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            } catch (e) {
-                list.innerHTML = '<div class="error">Ошибка загрузки истории</div>';
-            }
-        }
-
         // Logging
         function log(message, type = 'info') {
             const time = new Date().toLocaleTimeString();
@@ -2875,15 +2725,12 @@
                 localStorage.setItem('token', token);
                 localStorage.setItem('userId', userId);
                 localStorage.setItem('isGuest', 'true');
-                const guestDisplayName = j.displayName || `Guest${userId.slice(0,6)}`;
                 currentProfile = {
-                    displayName: guestDisplayName,
+                    displayName: j.displayName || `Guest${userId.slice(0,6)}`,
                     gender: '',
                     avatarUrl: '',
                     isGuest: true
                 };
-                // Сохраняем displayName для F5 recovery
-                localStorage.setItem('displayName', guestDisplayName);
                 updateBalanceDisplay(j.balanceWp);
                 log(`✅ Guest login: ${userId.slice(0,8)}...`);
                 setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: true, logs: false });
@@ -3232,60 +3079,13 @@
 
             // 🔄 Восстановление матча после F5
             socket.on("match:get", (m) => {
-                console.log('[CLIENT match:get]', {matchId: m.matchId, round: m.round, status: m.status, createdAt: m.createdAt});
+                console.log('[CLIENT match:get]', {matchId: m.matchId, round: m.round, status: m.status});
                 if (!m || m.status === 'FINISHED' || m.status === 'CANCELLED') {
                     log('❌ Матч завершен или отменен');
                     localStorage.setItem('uiState', 'game');
                     isProcessing.quickplay = false;
                     activeMatches.delete(m?.matchId);
                     setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
-                    return;
-                }
-                
-                // 🆕 Проверяем, не создан ли матч только что (< 5 сек назад)
-                const elapsedSec = m.createdAt ? Math.floor((Date.now() - m.createdAt) / 1000) : 999;
-                if (elapsedSec < 5) {
-                    const remainingSec = 5 - elapsedSec;
-                    console.log(`[match:get] Match created ${elapsedSec}s ago, showing countdown (${remainingSec}s left)`);
-                    log(`⏳ Матч начинается через ${remainingSec}сек...`);
-                    
-                    currentMatch = m;
-                    matchId = m.matchId;
-                    activeMatches.add(m.matchId);
-                    localStorage.setItem('uiState', 'in-match');
-                    setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
-                    
-                    // Показываем отсчёт вместо игры
-                    document.getElementById('gameContent').innerHTML = `
-                        <div class="waiting">
-                            <div style="font-size: 2em; color: #ffd700; margin-bottom: 20px;">🎮 МАТЧ НАЙДЕН!</div>
-                            <div style="font-size: 4em; color: #ffd700; margin: 20px 0;" id="reconnectCountdown">${remainingSec}</div>
-                            <div>Подготовка к бою...</div>
-                        </div>
-                    `;
-                    
-                    // Запускаем отсчёт
-                    let count = remainingSec;
-                    const countdownInterval = setInterval(() => {
-                        count--;
-                        const cdEl = document.getElementById('reconnectCountdown');
-                        if (cdEl) cdEl.textContent = count;
-                        if (count <= 0) {
-                            clearInterval(countdownInterval);
-                        }
-                    }, 1000);
-                    
-                    // После отсчёта рендерим матч
-                    setTimeout(() => {
-                        if (m.playerNames) Object.assign(playerNames, m.playerNames);
-                        renderMatch(m);
-                        showChat();
-                        // Запускаем таймер хода
-                        if (m.moveDeadline) {
-                            const secondsLeft = Math.max(0, Math.ceil((m.moveDeadline - Date.now()) / 1000));
-                            if (secondsLeft > 0) startMoveCountdown(secondsLeft, m.round, m.moveDeadline);
-                        }
-                    }, remainingSec * 1000);
                     return;
                 }
                 
@@ -4035,32 +3835,18 @@
         async function loadProfile() {
             if (!token) return;
             
-            // Сохраняем текущий displayName для гостей (F5 recovery)
-            const savedDisplayName = localStorage.getItem('displayName') || currentProfile.displayName;
-            
             try {
                 const res = await fetch(`${API_URL}/auth/me`, {
                     headers: { 'Authorization': token }
                 });
                 const data = await res.json();
                 
-                // Для гостей используем сохраненный displayName, если сервер вернул пустой
-                const isGuestUser = data.isGuest || localStorage.getItem('isGuest') === 'true';
-                const displayName = isGuestUser && savedDisplayName 
-                    ? savedDisplayName 
-                    : (data.displayName || data.username || '');
-                
                 currentProfile = {
-                    displayName: displayName,
+                    displayName: data.displayName || data.username || '',
                     gender: data.gender || '',
                     avatarUrl: data.avatarUrl || '',
                     isGuest: data.isGuest
                 };
-                
-                // Для гостей сохраняем displayName обратно в localStorage
-                if (isGuestUser && savedDisplayName) {
-                    localStorage.setItem('displayName', displayName);
-                }
                 
                 // Fill form
                 document.getElementById('profileDisplayName').value = currentProfile.displayName;
@@ -4698,19 +4484,6 @@
                     <h3 id="publicProfileName"></h3>
                     <div class="public-stats" id="publicProfileStats"></div>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- History Modal -->
-    <div class="modal-overlay" id="historyModal" onclick="closeModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3>🎮 История матчей</h3>
-                <button class="modal-close" onclick="document.getElementById('historyModal').classList.remove('show')">×</button>
-            </div>
-            <div class="modal-body" id="historyList">
-                <div class="stats-loading">Загрузка...</div>
             </div>
         </div>
     </div>
