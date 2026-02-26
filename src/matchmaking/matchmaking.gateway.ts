@@ -111,7 +111,7 @@ export class MatchmakingGateway {
 
     // Если попали в очередь — ждём синхронизированное время
     if (res.status === 'IN_QUEUE' && res.ticketId) {
-      const secondsLeft = res.secondsLeft || 20;
+      const secondsLeft = (res as any).secondsLeft || 20;
       // Отправляем queue:sync с актуальным количеством игроков
       const queueLen = await this.mm.getQueueLength(body.playersCount, body.stakeVp);
       socket.emit('queue:sync', { 

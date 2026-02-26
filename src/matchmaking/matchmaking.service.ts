@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, OnModuleInit } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { randomUUID } from 'crypto';
@@ -139,9 +139,48 @@ export class MatchmakingService {
     }
 
     private server: any;
+    private isShuttingDown = false;
+    private activeTimers: NodeJS.Timeout[] = [];
 
     setServer(server: any) {
         this.server = server;
+    }
+
+    onModuleDestroy() {
+        this.isShuttingDown = true;
+        // Clear all active timers
+        this.activeTimers.forEach(timer => clearTimeout(timer));
+        this.activeTimers = [];
+    }
+
+    /**
+     * Helper to schedule a timeout that can be cancelled on shutdown
+     */
+    private scheduleTimeout(callback: () => any, delayMs: number): void {
+        if (this.isShuttingDown) return;
+        const timer = setTimeout(async () => {
+            // Remove from active timers
+            const idx = this.activeTimers.indexOf(timer);
+            if (idx > -1) this.activeTimers.splice(idx, 1);
+            // Don't execute if shutting down
+            if (this.isShuttingDown) return;
+            await callback();
+        }, delayMs);
+        this.activeTimers.push(timer);
+    }
+
+    /**
+     * Генерирует числовой ID для PostgreSQL Advisory Lock из userId
+     */
+    private getPgLockId(userId: string): number {
+        // Простой hash из UUID в число (bigint range)
+        let hash = 0;
+        for (let i = 0; i < userId.length; i++) {
+            const char = userId.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return Math.abs(hash) % 2147483647; // Max int32
     }
 
     private qKey(playersCount: number, stakeVp: number) {
@@ -358,6 +397,65 @@ export class MatchmakingService {
         return null;
     }
 
+    /**
+     * 🔒 TC-RACE-01 FINAL FIX: Lua CAS с глобальной проверкой ВСЕХ очередей
+     * 
+     * Lua скрипт атомарно:
+     * 1. Берет глобальный lock на userId
+     * 2. Проверяет ВСЕ очереди на наличие тикета этого пользователя
+     * 3. Создает тикет только если нигде нет
+     */
+    private readonly QUICKPLAY_CAS_SCRIPT = `
+        local lockKey = KEYS[1]
+        local ticketKey = KEYS[2]
+        local queueKey = KEYS[3]
+        local queueTimeKey = KEYS[4]
+        local ticketData = ARGV[1]
+        local ticketId = ARGV[2]
+        local ttl = tonumber(ARGV[3])
+        local now = ARGV[4]
+        local userId = ARGV[5]
+        
+        -- 1. Атомарно берем глобальный lock на userId
+        local lockSet = redis.call('set', lockKey, '1', 'EX', ttl, 'NX')
+        if not lockSet then
+            return {-1, 'DUPLICATE_REQUEST'}
+        end
+        
+        -- 2. Проверяем ВСЕ возможные очереди (2,3,4,5 игроков и все ставки)
+        local allowedPlayers = {2, 3, 4, 5}
+        local allowedStakes = {100, 200, 500, 1000, 2500, 5000, 10000}
+        
+        for _, pc in ipairs(allowedPlayers) do
+            for _, stake in ipairs(allowedStakes) do
+                local qkey = 'queue:' .. pc .. ':' .. stake
+                local tids = redis.call('lrange', qkey, 0, -1)
+                for _, tid in ipairs(tids) do
+                    local tdata = redis.call('get', 'ticket:' .. tid)
+                    if tdata and string.find(tdata, userId, 1, true) then
+                        -- Нашли тикет в другой очереди!
+                        return {-2, 'ALREADY_IN_QUEUE', tid}
+                    end
+                end
+            end
+        end
+        
+        -- 3. Все проверки пройдены - создаем тикет
+        redis.call('set', ticketKey, ticketData, 'EX', 60)
+        redis.call('rpush', queueKey, ticketId)
+        
+        -- 4. Обновляем время очереди
+        local queueStart = redis.call('get', queueTimeKey)
+        if not queueStart then
+            redis.call('set', queueTimeKey, now, 'EX', 300)
+        end
+        
+        local queueLen = redis.call('llen', queueKey)
+        
+        -- 5. Lock оставляем на TTL (предотвращает быстрые повторы)
+        return {1, 'TICKET_CREATED', ticketId, queueLen}
+    `;
+
     async quickPlay(userId: string, playersCount: number, stakeVp: number, displayName?: string) {
         this.validateInputs(playersCount, stakeVp);
 
@@ -368,87 +466,210 @@ export class MatchmakingService {
             throw new BadRequestException(`Not enough balance. Need ${stakeVp}, have ${w.balanceWp}`);
         }
 
-        // ✅ Проверяем, нет ли уже тикета в очереди
+        // 🔒 TC-RACE-01 FINAL FIX: PostgreSQL Advisory Lock (с fallback на Redis)
+        
+        // Проверяем подключение к БД
+        let usePostgresLock = false;
+        try {
+            await this.dataSource.query('SELECT 1');
+            usePostgresLock = true;
+        } catch (e) {
+            console.log('[quickPlay] PostgreSQL not available, using Redis lock fallback');
+        }
+        
+        if (usePostgresLock) {
+            return this.quickPlayWithPgLock(userId, playersCount, stakeVp, displayName);
+        } else {
+            return this.quickPlayWithRedisLock(userId, playersCount, stakeVp, displayName);
+        }
+    }
+    
+    /**
+     * Вспомогательный метод для broadcast
+     */
+    private async broadcastQueueUpdate(playersCount: number, stakeVp: number, queueLen: number, remainingSec: number, elapsedSec: number) {
+        if (!this.server) return;
+        
+        const sockets = await this.server.fetchSockets();
+        let notifiedCount = 0;
+        
+        for (const socket of sockets) {
+            const socketUserId = socket.data?.userId || socket.handshake?.auth?.userId;
+            const hasTicket = await this.hasExistingTicket(socketUserId, playersCount, stakeVp);
+            
+            if (hasTicket) {
+                socket.emit('queue:sync', { 
+                    playersFound: queueLen, 
+                    totalNeeded: playersCount,
+                    secondsLeft: remainingSec,
+                    elapsed: elapsedSec 
+                });
+                notifiedCount++;
+            }
+        }
+        
+        console.log(`[quickPlay] Notified ${notifiedCount} players about queue update`);
+    }
+    
+    /**
+     * Fallback метод если Lua CAS не сработал
+     */
+    /**
+     * 🔒 Реализация с PostgreSQL Advisory Lock (production)
+     */
+    private async quickPlayWithPgLock(userId: string, playersCount: number, stakeVp: number, displayName?: string) {
+        const pgLockId = this.getPgLockId(userId);
+        let pgLockAcquired = false;
+        
+        try {
+            // Берем PostgreSQL Advisory Lock
+            const lockResult = await this.dataSource.query(
+                `SELECT pg_try_advisory_lock($1) as acquired`,
+                [pgLockId]
+            );
+            pgLockAcquired = lockResult[0]?.acquired;
+            
+            if (!pgLockAcquired) {
+                throw new BadRequestException('Duplicate request, please retry');
+            }
+            
+            return await this.createTicketAfterLock(userId, playersCount, stakeVp, displayName);
+            
+        } finally {
+            if (pgLockAcquired) {
+                await this.dataSource.query(`SELECT pg_advisory_unlock($1)`, [pgLockId]).catch(() => {});
+            }
+        }
+    }
+    
+    /**
+     * 🔒 Реализация с Redis Lock (fallback для тестов)
+     */
+    private async quickPlayWithRedisLock(userId: string, playersCount: number, stakeVp: number, displayName?: string) {
+        const lockKey = `lock:quickplay:${userId}`;
+        const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
+        
+        if (!lockAcquired) {
+            throw new BadRequestException('Duplicate request, please retry');
+        }
+        
+        try {
+            return await this.createTicketAfterLock(userId, playersCount, stakeVp, displayName);
+        } finally {
+            await this.redis.del(lockKey);
+        }
+    }
+    
+    /**
+     * Создание тикета после получения lock (общая логика)
+     */
+    private async createTicketAfterLock(userId: string, playersCount: number, stakeVp: number, displayName?: string) {
+        // Проверяем состояние
         const existingTicket = await this.hasExistingTicket(userId, playersCount, stakeVp);
         if (existingTicket) {
-            return { 
-                status: 'ALREADY_IN_QUEUE', 
-                ticketId: existingTicket.ticketId,
-                message: 'You already have a ticket in this queue'
-            };
+            return { status: 'ALREADY_IN_QUEUE', ticketId: existingTicket.ticketId, message: 'You already have a ticket in this queue' };
         }
-
+        
+        const activeState = await this.getUserActiveState(userId);
+        if (activeState.inQueue) {
+            return { status: 'ALREADY_IN_QUEUE', message: 'You already have a ticket in queue' };
+        }
+        if (activeState.activeMatch) {
+            return { status: 'ALREADY_IN_MATCH', matchId: activeState.activeMatch.matchId, message: 'You already have an active match' };
+        }
+        
+        // Создаем тикет
+        const ticketId = randomUUID();
         const ticket: Ticket = {
-            ticketId: randomUUID(),
+            ticketId,
             userId,
             playersCount,
             stakeVp,
             createdAt: Date.now(),
-            displayName,  // 👤 Имя игрока
+            displayName,
         };
-
+        
         const q = this.qKey(playersCount, stakeVp);
-        const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
-        
-        // Проверяем, есть ли уже время начала очереди
-        let queueStartTime = await this.redis.get(queueTimeKey);
-        if (!queueStartTime) {
-            // Первый игрок - сохраняем время начала
-            queueStartTime = Date.now().toString();
-            await this.redis.set(queueTimeKey, queueStartTime, 'EX', 300);
-        }
-        
-        await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 60);  // TTL 60 сек
+        await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 60);
         await this.redis.rpush(q, ticket.ticketId);
         
-        // 🧹 Очищаем истёкшие тикеты перед подсчётом
-        await this.cleanExpiredTicketsFromQueue(q);
+        this.scheduleTimeout(() => this.tryAssembleMatch(playersCount, stakeVp, false), 100);
         
-        const queueLen = await this.redis.llen(q);
-        console.log(`[quickPlay] User ${userId.slice(0,8)} joined queue ${q}, players: ${queueLen}/5`);
-
-        // Отправляем всем в очереди обновление (синхронизация таймера)
-        const elapsedSec = Math.floor((Date.now() - parseInt(queueStartTime)) / 1000);
-        const remainingSec = Math.max(0, 20 - elapsedSec);
+        return { status: 'QUEUED', ticketId };
+    }
+    
+    private async quickPlayFallback(userId: string, playersCount: number, stakeVp: number, displayName?: string) {
+        console.log(`[quickPlay] Using fallback for user ${userId.slice(0,8)}`);
         
-        if (this.server) {
-            const sockets = await this.server.fetchSockets();
-            console.log(`[quickPlay] Broadcasting queue:sync to ${sockets.length} sockets, queue: ${queueLen} players`);
-            let notifiedCount = 0;
-            for (const socket of sockets) {
-                const socketUserId = socket.data?.userId || socket.handshake?.auth?.userId;
-                console.log(`[quickPlay] Checking socket for user: ${socketUserId?.slice(0,8)}`);
-                // Проверяем, есть ли этот игрок в нашей очереди
-                const hasTicket = await this.hasExistingTicket(socketUserId, playersCount, stakeVp);
-                if (hasTicket) {
-                    socket.emit('queue:sync', { 
-                        playersFound: queueLen, 
-                        totalNeeded: playersCount,
-                        secondsLeft: remainingSec,
-                        elapsed: elapsedSec 
-                    });
-                    notifiedCount++;
-                    console.log(`[quickPlay] Sent queue:sync to ${socketUserId.slice(0,8)}`);
-                }
+        // 🔒 Fallback: сначала проверяем любые существующие тикеты (double-check)
+        const existingTicket = await this.hasExistingTicket(userId, playersCount, stakeVp);
+        if (existingTicket) {
+            return { status: 'ALREADY_IN_QUEUE', ticketId: existingTicket.ticketId, message: 'You already have a ticket in this queue' };
+        }
+        
+        // Проверяем активное состояние
+        const activeState = await this.getUserActiveState(userId);
+        if (activeState.inQueue) {
+            return { status: 'ALREADY_IN_QUEUE', message: 'You already have a ticket in queue' };
+        }
+        if (activeState.activeMatch) {
+            return { status: 'ALREADY_IN_MATCH', matchId: activeState.activeMatch.matchId, message: 'You already have an active match' };
+        }
+        
+        // 🔒 Только после проверок - берем lock
+        const lockKey = `lock:quickplay:${userId}`;
+        const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
+        
+        if (!lockAcquired) {
+            throw new BadRequestException('Duplicate request, please retry');
+        }
+        
+        try {
+            // Ещё одна проверка под lock
+            const doubleCheck = await this.hasExistingTicket(userId, playersCount, stakeVp);
+            if (doubleCheck) {
+                return { status: 'ALREADY_IN_QUEUE', ticketId: doubleCheck.ticketId, message: 'You already have a ticket in this queue' };
             }
-            console.log(`[quickPlay] Notified ${notifiedCount} players about queue update`);
+            
+            // Создаем тикет
+            const ticket: Ticket = {
+                ticketId: randomUUID(),
+                userId,
+                playersCount,
+                stakeVp,
+                createdAt: Date.now(),
+                displayName,
+            };
+            
+            const q = this.qKey(playersCount, stakeVp);
+            await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 60);
+            await this.redis.rpush(q, ticket.ticketId);
+            
+            console.log(`[quickPlay] User ${userId.slice(0,8)} joined queue ${q} via fallback`);
+            
+            this.scheduleTimeout(() => this.tryAssembleMatch(playersCount, stakeVp, false), 100);
+            
+            return { status: 'QUEUED', ticketId: ticket.ticketId };
+        } finally {
+            await this.redis.del(lockKey);
         }
-
-        // Пробуем собрать матч ТОЛЬКО если набралось 5 игроков (не по таймауту)
-        const matchId = await this.tryAssembleMatch(playersCount, stakeVp, false);
-        if (matchId) {
-            // Матч создан - удаляем ключ времени очереди
-            await this.redis.del(queueTimeKey);
-            return { status: 'MATCH_READY', matchId };
-        }
-
-        return { status: 'IN_QUEUE', ticketId: ticket.ticketId, secondsLeft: remainingSec };
     }
 
     async getTicket(ticketId: string) {
         const raw = await this.redis.get(this.ticketKey(ticketId));
         if (!raw) return null;
         return JSON.parse(raw) as Ticket;
+    }
+
+    async getTicketForUser(ticketId: string, userId: string) {
+        const ticket = await this.getTicket(ticketId);
+        if (!ticket) {
+            throw new NotFoundException('Ticket not found');
+        }
+        if (ticket.userId !== userId) {
+            throw new NotFoundException('Ticket not found');
+        }
+        return ticket;
     }
 
     // 🔍 Найти тикет пользователя в любой очереди
@@ -476,6 +697,14 @@ export class MatchmakingService {
         const raw = await this.redis.get(this.matchKey(matchId));
         if (!raw) return null;
         return JSON.parse(raw) as Match;
+    }
+
+    async getMatchOrThrow(matchId: string) {
+        const match = await this.getMatch(matchId);
+        if (!match) {
+            throw new NotFoundException('Match not found');
+        }
+        return match;
     }
 
     // 🔄 Проверяет есть ли пользователь в очереди или активном матче
@@ -781,7 +1010,7 @@ export class MatchmakingService {
             
             // Отправляем отсчёт 5-4-3-2-1 всем в комнате
             for (let i = 5; i >= 1; i--) {
-                setTimeout(() => {
+                this.scheduleTimeout(() => {
                     if (this.server) {
                         this.server.to(matchRoom).emit('match:countdown', { seconds: i });
                     }
@@ -789,7 +1018,7 @@ export class MatchmakingService {
             }
             
             // 3. Отправляем match:start сразу после отсчёта (5 сек)
-            setTimeout(async () => {
+            this.scheduleTimeout(async () => {
                 // 🛡️ Lock на время старта матча
                 const startLockKey = `match:startlock:${match.matchId}`;
                 const startLock = await this.redis.set(startLockKey, '1', 'EX', 10, 'NX');
@@ -1003,6 +1232,7 @@ export class MatchmakingService {
     }
 
     private async settleIfFinished(m: any) {
+        if (this.isShuttingDown) return m;
         if (m.status !== 'FINISHED') return m;
         
         // ⚠️ Перезагружаем из Redis чтобы проверить, не был ли уже settlement
@@ -1357,6 +1587,11 @@ export class MatchmakingService {
         console.log(`[submitMove] getMatch: ${Date.now() - start}ms`);
         if (!m) throw new BadRequestException('Match not found');
 
+        // Check if match is already finished
+        if (m.status === 'FINISHED') {
+            throw new BadRequestException('Match is already finished');
+        }
+
         // Проверка: является ли пользователь участником матча
         if (!m.playerIds.includes(userId)) {
             throw new BadRequestException('You are not a player in this match');
@@ -1455,7 +1690,7 @@ export class MatchmakingService {
             const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
             if (!hasRealPlayers && this.server) {
                 console.log(`[submitMove] Only bots left after tie, triggering bot rounds`);
-                setTimeout(() => {
+                this.scheduleTimeout(() => {
                     this.processBotRounds(m.matchId);
                 }, 1500);
             } else if (hasRealPlayers) {
@@ -1563,7 +1798,7 @@ export class MatchmakingService {
         const hasRealPlayers = m.aliveIds.some((id: string) => !id.startsWith('BOT'));
         if (!hasRealPlayers && this.server) {
             console.log(`[submitMove] Only bots left after elimination, triggering bot rounds`);
-            setTimeout(() => {
+            this.scheduleTimeout(() => {
                 this.processBotRounds(m.matchId);
             }, 1500);
         } else if (hasRealPlayers) {
@@ -1626,13 +1861,14 @@ export class MatchmakingService {
         // Запускаем таймаут (сохраняем дедлайн и раунд для проверки актуальности)
         const expectedDeadline = m.moveDeadline;
         const expectedRound = m.round;
-        setTimeout(() => {
+        this.scheduleTimeout(() => {
             this.processMoveTimeout(matchId, expectedDeadline, expectedRound);
         }, seconds * 1000);
     }
 
     // ⏱️ Обработка таймаута хода (игрок не сделал ход)
     async processMoveTimeout(matchId: string, expectedDeadline?: number, expectedRound?: number) {
+        if (this.isShuttingDown) return;
         console.log(`[processMoveTimeout] Processing timeout for ${matchId}, expectedRound=${expectedRound}`);
         
         let m = await this.getMatch(matchId);
@@ -1712,6 +1948,7 @@ export class MatchmakingService {
 
     // ⏱️ Резолв раунда после автоматических ходов
     private async resolveRoundAfterAutoMoves(m: any) {
+        if (this.isShuttingDown) return;
         console.log(`[SERVER resolveRound] START round=${m.round}, match=${m.matchId.slice(0,8)}, alive=${m.aliveIds.length}`);
         
         // ⚠️ КРИТИЧНО: Перезагружаем из Redis для актуальных данных
@@ -1835,7 +2072,7 @@ export class MatchmakingService {
         if (!hasRealPlayers && m.status !== 'FINISHED' && this.server) {
             console.log(`[resolveRoundAfterAutoMoves] Only bots left, triggering bot rounds`);
             // Запускаем ботов с небольшой задержкой
-            setTimeout(() => {
+            this.scheduleTimeout(() => {
                 this.processBotRounds(m.matchId);
             }, 1500);
         }
@@ -1843,10 +2080,12 @@ export class MatchmakingService {
 
     // 🤖 Автоматическая игра ботов после выбывания игрока
     async processBotRounds(matchId: string) {
+        if (this.isShuttingDown) return;
         const ROUND_DELAY_MS = 1500;
         const MAX_ROUNDS = 50;
         
         for (let round = 0; round < MAX_ROUNDS; round++) {
+            if (this.isShuttingDown) return;
             await new Promise(resolve => setTimeout(resolve, ROUND_DELAY_MS));
             
             const m = await this.getMatch(matchId);

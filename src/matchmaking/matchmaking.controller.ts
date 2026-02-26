@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Headers, Param, Post } from '@nestjs/common';
 import { MatchmakingService } from './matchmaking.service';
+import { SubmitMoveDto } from './dto/submit-move.dto';
 
 function getTokenUserId(authHeader?: string): string {
     if (!authHeader) return '';
@@ -42,8 +43,9 @@ export class MatchmakingController {
     }
 
     @Get('ticket/:id')
-    async ticket(@Param('id') id: string) {
-        return this.mm.getTicket(id);
+    async ticket(@Param('id') id: string, @Headers('authorization') auth: string) {
+        const userId = getTokenUserId(auth);
+        return this.mm.getTicketForUser(id, userId);
     }
 
     @Post('ticket/:id/fallback')
@@ -53,14 +55,14 @@ export class MatchmakingController {
 
     @Get('match/:id')
     async match(@Param('id') id: string) {
-        return this.mm.getMatch(id);
+        return this.mm.getMatchOrThrow(id);
     }
 
     @Post('match/:id/move')
     async move(
         @Param('id') id: string,
         @Headers('authorization') auth: string,
-        @Body() body: { move: 'ROCK' | 'PAPER' | 'SCISSORS' },
+        @Body() body: SubmitMoveDto,
     ) {
         const userId = getTokenUserId(auth);
         return this.mm.submitMove(id, userId, body.move);

@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Patch, Body, Query, Headers, BadRequestException, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 // Декодирует JWT и возвращает userId из 'sub' claim
 // Поддерживает как JWT токены, так и plain UUID (для обратной совместимости)
@@ -303,11 +304,15 @@ export class AuthController {
   @Patch('profile')
   updateProfile(
     @Headers('authorization') authHeader: string,
-    @Body() body: { displayName?: string | null; gender?: 'male' | 'female' | '' | null; avatarUrl?: string | null },
+    @Body() body: UpdateProfileDto,
   ) {
     const token = getTokenUserId(authHeader);
     if (!token) {
       throw new BadRequestException('Необходима авторизация');
+    }
+    // Additional validation for empty/whitespace displayName
+    if (body.displayName !== undefined && body.displayName.trim() === '') {
+      throw new BadRequestException('Display name cannot be empty');
     }
     return this.auth.updateProfile(token, body);
   }
