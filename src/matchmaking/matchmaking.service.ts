@@ -136,6 +136,11 @@ export class MatchmakingService {
         setInterval(() => {
             this.cleanupOrphanedMatches(10);
         }, 5 * 60 * 1000);
+
+        // 🆕 Проверка таймаутов очередей каждую секунду (для F5 recovery)
+        setInterval(() => {
+            this.processQueueTimeouts();
+        }, 1000);
     }
 
     private server: any;
@@ -375,6 +380,45 @@ export class MatchmakingService {
         return cleaned;
     }
 
+    /**
+     * ⏱️ Обработка таймаутов очередей (каждую секунду)
+     * Создаёт матч с ботами если прошло 20 секунд и не набралось достаточно игроков
+     */
+    async processQueueTimeouts(): Promise<void> {
+        if (this.isShuttingDown) return;
+        
+        for (const playersCount of ALLOWED_PLAYERS) {
+            for (const stakeVp of ALLOWED_STAKES) {
+                const q = this.qKey(playersCount, stakeVp);
+                const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
+                
+                try {
+                    // Проверяем есть ли игроки в очереди
+                    const len = await this.redis.llen(q);
+                    if (len === 0) continue;
+                    
+                    // Проверяем время начала очереди
+                    const queueStartTime = await this.redis.get(queueTimeKey);
+                    if (!queueStartTime) {
+                        // Первый игрок — устанавливаем время
+                        await this.redis.set(queueTimeKey, Date.now().toString());
+                        continue;
+                    }
+                    
+                    const elapsedSec = Math.floor((Date.now() - parseInt(queueStartTime)) / 1000);
+                    
+                    // Если прошло 20+ секунд и есть хотя бы 1 игрок — пробуем собрать матч
+                    if (elapsedSec >= 20 && len >= 1) {
+                        console.log(`[processQueueTimeouts] Queue ${q}: timeout (${elapsedSec}s, ${len} players), forcing match creation`);
+                        await this.tryAssembleMatch(playersCount, stakeVp, true);
+                    }
+                } catch (e) {
+                    console.error(`[processQueueTimeouts] Error processing queue ${q}:`, e);
+                }
+            }
+        }
+    }
+
     validateInputs(playersCount: number, stakeVp: number) {
         if (!ALLOWED_PLAYERS.has(playersCount)) {
             throw new BadRequestException('playersCount must be 2, 3, or 4');
@@ -593,6 +637,13 @@ export class MatchmakingService {
         await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 60);
         await this.redis.rpush(q, ticket.ticketId);
         
+        // 🆕 Устанавливаем время начала очереди (для таймаута 20 сек)
+        const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
+        const existingQueueTime = await this.redis.get(queueTimeKey);
+        if (!existingQueueTime) {
+            await this.redis.set(queueTimeKey, Date.now().toString());
+        }
+        
         this.scheduleTimeout(() => this.tryAssembleMatch(playersCount, stakeVp, false), 100);
         
         return { status: 'QUEUED', ticketId };
@@ -644,6 +695,13 @@ export class MatchmakingService {
             const q = this.qKey(playersCount, stakeVp);
             await this.redis.set(this.ticketKey(ticket.ticketId), JSON.stringify(ticket), 'EX', 60);
             await this.redis.rpush(q, ticket.ticketId);
+            
+            // 🆕 Устанавливаем время начала очереди (для таймаута 20 сек)
+            const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
+            const existingQueueTime = await this.redis.get(queueTimeKey);
+            if (!existingQueueTime) {
+                await this.redis.set(queueTimeKey, Date.now().toString());
+            }
             
             console.log(`[quickPlay] User ${userId.slice(0,8)} joined queue ${q} via fallback`);
             
@@ -860,13 +918,12 @@ export class MatchmakingService {
             if (id) ticketIds.push(id);
         }
 
-        if (ticketIds.length < 2) {
-            // Не набралось 2 игроков - возвращаем обратно
-            if (ticketIds.length) await this.redis.lpush(q, ...ticketIds.reverse());
+        if (ticketIds.length < 1) {
+            // Нет игроков - ничего не делаем
             return null;
         }
         
-        // ✅ Есть минимум 2 игрока - собираем матч (остальное добьём ботами)
+        // ✅ Есть хотя бы 1 игрок - собираем матч (добавим ботов до нужного количества)
 
         const tickets: Ticket[] = [];
         const seenUserIds = new Set<string>();
@@ -891,13 +948,17 @@ export class MatchmakingService {
             tickets.push(t);
         }
         
-        // Если не набралось 2 валидных тикетов - возвращаем их в очередь
-        if (tickets.length < 2) {
-            console.log(`[tryAssembleMatch] Only ${tickets.length} valid tickets, returning to queue`);
-            if (tickets.length) {
-                const validIds = tickets.map(t => t.ticketId);
-                await this.redis.lpush(q, ...validIds.reverse());
-            }
+        // Если не набралось минимум 1 валидного тикета - отменяем
+        if (tickets.length < 1) {
+            console.log(`[tryAssembleMatch] No valid tickets, aborting`);
+            return null;
+        }
+        
+        // Если только 1 игрок и не force-режим - возвращаем в очередь
+        if (tickets.length < 2 && !force) {
+            console.log(`[tryAssembleMatch] Only ${tickets.length} valid tickets (need 2+ or force=true), returning to queue`);
+            const validIds = tickets.map(t => t.ticketId);
+            await this.redis.lpush(q, ...validIds.reverse());
             return null;
         }
 

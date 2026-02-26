@@ -122,6 +122,7 @@ export class MatchmakingGateway {
       socket.emit('queue:waiting', { seconds: secondsLeft, playersFound: queueLen });
       console.log(`[Gateway] User ${userId.slice(0,8)} in queue, ${queueLen}/${body.playersCount} players, ${secondsLeft}s left`);
 
+      // ⏱️ Запускаем fallback через secondsLeft секунд (20 сек по умолчанию)
       setTimeout(async () => {
         try {
           const fb = await this.mm.fallbackToBotIfTimedOut(res.ticketId);
@@ -206,7 +207,7 @@ export class MatchmakingGateway {
           const s = sockets.find(sock => sock.data?.userId === userId);
           if (s) s.emit('error', { message: e?.message || 'fallback failed' });
         }
-      }, 100);  // Вызываем fallback сразу, он сам управляет ожиданием
+      }, secondsLeft * 1000);  // ⏱️ Ждём 20 секунд (или secondsLeft от сервера)
     }
 
     // Если матч готов сразу — НИЧЕГО НЕ ДЕЛАЕМ здесь
