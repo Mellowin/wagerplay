@@ -341,32 +341,110 @@
             transform: scale(1.1);
         }
 
-        /* Language Selector */
-        .lang-selector {
+        /* Burger Menu */
+        .burger-menu-container {
             position: fixed;
             top: 20px;
-            left: 20px;
-            display: flex;
-            gap: 10px;
+            right: 80px;
+            z-index: 1000;
         }
 
-        .lang-btn {
+        .burger-btn {
             background: rgba(255,255,255,0.2);
-            border: 2px solid transparent;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 1.2em;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 15px;
+            font-size: 1.5em;
             cursor: pointer;
             transition: all 0.3s ease;
+            color: white;
         }
 
-        .lang-btn:hover {
+        .burger-btn:hover {
             background: rgba(255,255,255,0.3);
             transform: scale(1.1);
         }
 
-        .lang-btn.active {
-            border-color: #ffd700;
+        .burger-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            background: rgba(30, 60, 114, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: none;
+            overflow: hidden;
+            min-width: 200px;
+        }
+
+        .burger-menu.show {
+            display: block;
+            animation: dropdownSlide 0.2s ease;
+        }
+
+        /* Language Dropdown Styles */
+        .lang-dropdown-container {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+        }
+
+        .lang-dropdown-btn {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .lang-dropdown-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .lang-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 8px;
+            background: rgba(30, 60, 114, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: none;
+            overflow: hidden;
+            min-width: 150px;
+        }
+
+        .lang-dropdown-menu.show {
+            display: block;
+            animation: dropdownSlide 0.2s ease;
+        }
+
+        .lang-dropdown-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s ease;
+        }
+
+        .lang-dropdown-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .lang-dropdown-item.selected {
             background: rgba(255,215,0,0.3);
         }
 
@@ -1114,14 +1192,53 @@
 <body>
     <button class="sound-toggle" onclick="toggleSound()" title="Вкл/выкл звук">🔊</button>
 
-    <div class="container">
-        <!-- Language Selector -->
-        <div class="lang-selector">
-            <button class="lang-btn" onclick="setLang('ru')" id="lang-ru">RU</button>
-            <button class="lang-btn" onclick="setLang('en')" id="lang-en">EN</button>
-            <button class="lang-btn" onclick="setLang('cn')" id="lang-cn">CN</button>
+    <!-- Burger Menu -->
+    <div class="burger-menu-container">
+        <button class="burger-btn" onclick="toggleMenu()" title="Меню">☰</button>
+        <div class="burger-menu" id="burgerMenu">
+            <div class="dropdown-item" onclick="doCheckBalance(); closeMenu();">
+                <span>💳</span>
+                <span id="burgerBalanceText">Баланс</span>
+            </div>
+            <div class="dropdown-item" onclick="showStatsModal(); closeMenu();">
+                <span>📊</span>
+                <span id="burgerStatsText">Статистика</span>
+            </div>
+            <div class="dropdown-item" onclick="showLogsInChat(); closeMenu();">
+                <span>📋</span>
+                <span id="burgerLogsText">Логи</span>
+            </div>
+            <div class="dropdown-item" onclick="showAuditModal(); closeMenu();">
+                <span>📜</span>
+                <span id="burgerAuditText">Проверка</span>
+            </div>
+            <div class="dropdown-item" onclick="showReconcileModal(); closeMenu();">
+                <span>⚖️</span>
+                <span id="burgerReconcileText">Сверка</span>
+            </div>
         </div>
+    </div>
 
+    <!-- Language Dropdown -->
+    <div class="lang-dropdown-container">
+        <button class="lang-dropdown-btn" onclick="toggleLanguageDropdown()" id="langDropdownBtn">RU ▼</button>
+        <div class="lang-dropdown-menu" id="langDropdownMenu">
+            <div class="lang-dropdown-item" onclick="setLang('ru')" data-lang="ru">
+                <span>🇷🇺</span>
+                <span>Русский</span>
+            </div>
+            <div class="lang-dropdown-item" onclick="setLang('en')" data-lang="en">
+                <span>🇺🇸</span>
+                <span>English</span>
+            </div>
+            <div class="lang-dropdown-item" onclick="setLang('cn')" data-lang="cn">
+                <span>🇨🇳</span>
+                <span>中文</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
         <h1>🎮 WagerPlay</h1>
         <p class="subtitle">Rock Paper Scissors - Играй и выигрывай!</p>
 
@@ -1221,12 +1338,7 @@
                 </div>
             </div>
             
-            <button class="btn btn-primary" id="btnBalance" onclick="doCheckBalance()" disabled>💳 Баланс</button>
-            <button class="btn btn-primary" id="btnStats" onclick="showStatsModal()" disabled>📊 Статистика</button>
             <button class="btn btn-primary" id="btnGoToProfile" onclick="goToProfileScreen()" disabled>👤 В ПРОФИЛЬ</button>
-                <button class="btn btn-primary" id="btnLogs" onclick="showLogsInChat()" disabled>📋 Логи</button>
-                <button class="btn btn-secondary" id="btnAudit" onclick="showAuditModal()" disabled>📜 Audit</button>
-                <button class="btn btn-secondary" id="btnReconcile" onclick="showReconcileModal()" disabled>⚖️ Сверка</button>
             </div>
         </div>
 
@@ -1270,6 +1382,7 @@
         let matchId = "";
         let socket = null;
         let soundEnabled = true;
+        let hasUserInteracted = false;  // 🎵 Для блокировки AudioContext до первого клика
         let currentMatch = null;
         const activeMatches = new Set();  // 🛡️ Отслеживаем ВСЕ активные матчи
         let countdownInterval = null;
@@ -1607,16 +1720,55 @@
             if (subtitle) subtitle.textContent = t('subtitle');
             if (balanceLabel) balanceLabel.textContent = '💰 ' + t('balance');
             
-            // Update language buttons
-            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
-            const langBtn = document.getElementById(`lang-${lang}`);
-            if (langBtn) langBtn.classList.add('active');
+            // Update language dropdown
+            const langDropdownBtn = document.getElementById('langDropdownBtn');
+            if (langDropdownBtn) {
+                const langNames = { ru: 'RU', en: 'EN', cn: 'CN' };
+                langDropdownBtn.textContent = langNames[lang] + ' ▼';
+            }
+            document.querySelectorAll('.lang-dropdown-item').forEach(item => {
+                item.classList.toggle('selected', item.dataset.lang === lang);
+            });
+            
+            // Update burger menu texts
+            const burgerBalanceText = document.getElementById('burgerBalanceText');
+            const burgerStatsText = document.getElementById('burgerStatsText');
+            const burgerLogsText = document.getElementById('burgerLogsText');
+            const burgerAuditText = document.getElementById('burgerAuditText');
+            const burgerReconcileText = document.getElementById('burgerReconcileText');
+            if (burgerBalanceText) burgerBalanceText.textContent = t('balanceBtn').replace('💳 ', '');
+            if (burgerStatsText) burgerStatsText.textContent = t('statsBtn').replace('📊 ', '');
+            if (burgerLogsText) burgerLogsText.textContent = t('logsBtn').replace('📋 ', '');
+            if (burgerAuditText) burgerAuditText.textContent = t('auditBtn').replace('📜 ', '');
+            if (burgerReconcileText) burgerReconcileText.textContent = t('reconcileBtn').replace('⚖️ ', '');
             
             // Refresh match display if exists
             if (currentMatch) renderMatch(currentMatch);
             
             // Save preference
             localStorage.setItem('preferredLang', lang);
+        }
+
+        // Language Dropdown Functions
+        function toggleLanguageDropdown() {
+            const dropdown = document.getElementById('langDropdownMenu');
+            dropdown.classList.toggle('show');
+        }
+
+        function closeLanguageDropdown() {
+            const dropdown = document.getElementById('langDropdownMenu');
+            dropdown.classList.remove('show');
+        }
+
+        // Burger Menu Functions
+        function toggleMenu() {
+            const menu = document.getElementById('burgerMenu');
+            menu.classList.toggle('show');
+        }
+
+        function closeMenu() {
+            const menu = document.getElementById('burgerMenu');
+            menu.classList.remove('show');
         }
 
         // Player Selection
@@ -2173,6 +2325,7 @@
         window.onload = function() {
             // 🎵 Инициализация аудио при первом клике (требование Chrome)
             const initAudioOnFirstClick = () => {
+                hasUserInteracted = true;
                 initAudio().then(() => {
                     console.log('[Audio] Initialized on first user interaction');
                 });
@@ -2183,9 +2336,26 @@
             const savedLang = localStorage.getItem('preferredLang') || 'ru';
             setLang(savedLang);
             
+            // 🔄 Закрытие dropdown при клике вне
+            document.addEventListener('click', function(e) {
+                const langDropdown = document.querySelector('.lang-dropdown-container');
+                const burgerMenu = document.querySelector('.burger-menu-container');
+                if (langDropdown && !langDropdown.contains(e.target)) {
+                    closeLanguageDropdown();
+                }
+                if (burgerMenu && !burgerMenu.contains(e.target)) {
+                    closeMenu();
+                }
+            });
+            
             // 🛡️ Восстанавливаем сессию если есть сохраненный токен
             const savedToken = localStorage.getItem('token');
             const savedUserId = localStorage.getItem('userId');
+            // Restore displayName from localStorage for F5 recovery
+            const savedDisplayName = localStorage.getItem('displayName');
+            if (savedDisplayName) {
+                currentProfile.displayName = savedDisplayName;
+            }
             if (savedToken && savedUserId) {
                 token = savedToken;
                 userId = savedUserId;
@@ -2263,6 +2433,7 @@
 
         // 🎵 Инициализация аудио при первом взаимодействии
         async function initAudio() {
+            if (!hasUserInteracted) return false;  // 🎵 Блокируем до первого клика
             if (audioInitialized) return true;
             try {
                 if (!audioCtx) {
@@ -3611,6 +3782,14 @@
                             socket.emit('match:join', { matchId });
                             console.log('[F5 Restore] Rejoined match room:', matchId);
                         }
+                    } else {
+                        // Ни в очереди, ни в матче — сбрасываем состояние
+                        console.log('[checkActiveMatchOrQueue] User not active, resetting UI state');
+                        localStorage.setItem('uiState', 'game');
+                        isProcessing.quickplay = false;
+                        activeMatches.clear();
+                        setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                        updateWaitingText(); // Показываем "Нажмите Guest Login"
                     }
                 }
             } catch (e) {
@@ -3790,6 +3969,8 @@
                     currentProfile.displayName = displayName;
                     currentProfile.gender = gender;
                     currentProfile.avatarUrl = avatarUrl;
+                    // Save displayName to localStorage for F5 recovery
+                    localStorage.setItem('displayName', displayName);
                     
                     // Update UI
                     updateUserInfoAfterProfileUpdate();
