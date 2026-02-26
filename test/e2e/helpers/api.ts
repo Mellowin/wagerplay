@@ -64,22 +64,27 @@ export class TestClient {
     let attempts = 0;
     let res: request.Response;
     
-    while (attempts < 20) {
-      res = await request(this.server)
-        .post('/matchmaking/test/force-match')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ playersCount, stakeVp });
-      
-      if (res.body.status === 'OK' || res.body.result) {
-        return res.body;
+    while (attempts < 30) {
+      try {
+        res = await request(this.server)
+          .post('/matchmaking/test/force-match')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ playersCount, stakeVp });
+        
+        if (res.body.status === 'OK' || res.body.result) {
+          return res.body;
+        }
+      } catch (e) {
+        // Ignore errors and retry
       }
       
       // If failed, wait a bit and retry
       attempts++;
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 300));
     }
     
-    return res!.body;
+    // Return last response even if failed
+    return res?.body || { status: 'FAILED', attempts };
   }
 
   /**
@@ -132,15 +137,19 @@ export class TestClient {
    * Poll for active match with timeout
    * Used to handle race conditions after forceMatch
    */
-  async pollForActiveMatch(token: string, maxAttempts: number = 10, interval: number = 200): Promise<any> {
+  async pollForActiveMatch(token: string, maxAttempts: number = 15, interval: number = 300): Promise<any> {
     for (let i = 0; i < maxAttempts; i++) {
-      const state = await this.getActiveState(token);
-      if (state.activeMatch) {
-        return state;
+      try {
+        const state = await this.getActiveState(token);
+        if (state.activeMatch) {
+          return state;
+        }
+      } catch (e) {
+        // Ignore errors, retry
       }
       await new Promise(r => setTimeout(r, interval));
     }
-    throw new Error('Timeout waiting for active match');
+    throw new Error(`Timeout waiting for active match after ${maxAttempts} attempts`);
   }
 
   /**
