@@ -17,6 +17,7 @@ const MATCH_SEARCH_TIMEOUT_SEC = 20;      // 60 сек на поиск матч�
 const MOVE_TIMEOUT_SEC = 12;              // 12 сек на ход
 const BOT_FALLBACK_TIMEOUT_SEC = 5;       // 5 сек до ботов если нет соперников
 const MIN_REAL_PLAYERS_FOR_PVP = 2;       // Минимум 2 игрока для PVP
+const FROZEN_STAKE_TIMEOUT_MS = 5 * 60 * 1000; // ⏱️ 5 минут на заморозку ставки
 
 // 🎮 Реалистичные ники для ботов
 const BOT_NICKNAMES = [
@@ -132,9 +133,23 @@ export class MatchmakingService {
             }
         });
 
+        // 🆕 Автоматическая очистка зависших frozen ставок при старте
+        setTimeout(() => {
+            this.cleanupStaleFrozenStakes().then(result => {
+                if (result.cleaned > 0) {
+                    console.log(`[MatchmakingService] Startup cleanup: ${result.cleaned} stale frozen stakes returned (${result.totalReturned} VP)`);
+                }
+            });
+        }, 5000); // Небольшая задержка чтобы всё инициализировалось
+
         // 🆕 Периодическая проверка каждые 5 минут
         setInterval(() => {
             this.cleanupOrphanedMatches(10);
+        }, 5 * 60 * 1000);
+
+        // 🆕 Периодическая очистка stale frozen stakes каждые 5 минут
+        setInterval(() => {
+            this.cleanupStaleFrozenStakes();
         }, 5 * 60 * 1000);
 
         // 🆕 Проверка таймаутов очередей каждую секунду (для F5 recovery)
@@ -257,6 +272,13 @@ export class MatchmakingService {
             w.frozenWp += stakeVp;
             await manager.save(w);
             
+            // 📝 Сохраняем в Redis для автоматической очистки
+            await this.redis.set(`frozen:${userId}`, JSON.stringify({
+                userId,
+                stakeVp,
+                frozenAt: Date.now()
+            }), 'EX', 600); // TTL 10 минут
+            
             await this.audit.log({
                 eventType: 'STAKE_FROZEN',
                 matchId: null,
@@ -281,6 +303,9 @@ export class MatchmakingService {
             w.balanceWp += stakeVp;
             await manager.save(w);
             
+            // 🧹 Удаляем запись о frozen из Redis
+            await this.redis.del(`frozen:${userId}`);
+            
             await this.audit.log({
                 eventType: 'STAKE_UNFROZEN',
                 matchId: null,
@@ -288,6 +313,50 @@ export class MatchmakingService {
                 payload: { reason: 'UNFREEZE_STAKE', amountVp: stakeVp, balanceAfter: w.balanceWp, frozenAfter: w.frozenWp },
             });
         });
+    }
+
+    // 🆕 Автоматическая очистка зависших frozen ставок (вызывается при старте и периодически)
+    async cleanupStaleFrozenStakes(): Promise<{ cleaned: number; totalReturned: number }> {
+        const now = Date.now();
+        let cleaned = 0;
+        let totalReturned = 0;
+        
+        // Ищем все ключи frozen:*
+        const frozenKeys = await this.scanKeys('frozen:*');
+        
+        for (const key of frozenKeys) {
+            const data = await this.redis.get(key);
+            if (!data) continue;
+            
+            try {
+                const { userId, stakeVp, frozenAt } = JSON.parse(data);
+                const frozenTime = now - frozenAt;
+                
+                // Если заморожено больше 5 минут - возвращаем
+                if (frozenTime > FROZEN_STAKE_TIMEOUT_MS) {
+                    // Проверяем, не начался ли уже матч
+                    const activeState = await this.getUserActiveState(userId);
+                    
+                    // Возвращаем только если нет активного матча
+                    if (!activeState.activeMatch) {
+                        await this.unfreezeStake(userId, stakeVp);
+                        await this.redis.del(key);
+                        
+                        cleaned++;
+                        totalReturned += stakeVp;
+                        console.log(`[cleanupStaleFrozenStakes] Returned ${stakeVp} VP to user ${userId.slice(0,8)} (frozen ${Math.floor(frozenTime/1000)}s)`);
+                    }
+                }
+            } catch (e) {
+                console.error(`[cleanupStaleFrozenStakes] Error processing key ${key}:`, e);
+            }
+        }
+        
+        if (cleaned > 0) {
+            console.log(`[cleanupStaleFrozenStakes] Cleaned ${cleaned} stale frozen stakes, returned ${totalReturned} VP`);
+        }
+        
+        return { cleaned, totalReturned };
     }
 
     // 🆕 Отмена матча и возврат всех замороженных средств

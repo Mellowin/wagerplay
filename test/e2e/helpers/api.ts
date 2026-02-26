@@ -142,4 +142,16 @@ export class TestClient {
     }
     throw new Error('Timeout waiting for active match');
   }
+
+  /**
+   * Get wallet balance
+   */
+  async getWallet(token: string): Promise<any> {
+    const res = await request(this.server)
+      .get('/wallet')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    return res.body;
+  }
 }

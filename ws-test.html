@@ -3138,7 +3138,41 @@
         // Update UI
         function updateBalanceDisplay(balance, frozen = 0) {
             document.getElementById('balanceDisplay').textContent = `${balance} VP`;
-            document.getElementById('frozenDisplay').textContent = frozen > 0 ? `Заморожено: ${frozen} VP` : '';
+            const frozenEl = document.getElementById('frozenDisplay');
+            if (frozen > 0) {
+                frozenEl.innerHTML = `Заморожено: ${frozen} VP <button onclick="resetFrozen()" style="margin-left:10px;padding:4px 8px;font-size:0.8em;background:#ff6b6b;border:none;border-radius:4px;color:white;cursor:pointer;">Вернуть</button>`;
+            } else {
+                frozenEl.textContent = '';
+            }
+        }
+
+        // 🆕 Сброс frozen баланса
+        async function resetFrozen() {
+            if (!token) {
+                showToast('error', 'Необходима авторизация');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/wallet/reset-frozen`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success && result.returnedVp > 0) {
+                    showToast('success', `Возвращено ${result.returnedVp} VP на баланс!`);
+                    loadBalance(); // Обновляем баланс
+                } else if (result.returnedVp === 0) {
+                    showToast('info', 'Нет замороженных средств');
+                } else {
+                    showToast('error', result.message || 'Ошибка возврата');
+                }
+            } catch (e) {
+                console.error('resetFrozen error:', e);
+                showToast('error', 'Ошибка сети');
+            }
         }
 
         function setButtons(state) {

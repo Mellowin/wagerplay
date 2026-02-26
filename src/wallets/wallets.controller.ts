@@ -25,9 +25,23 @@ export class WalletsController {
         return { userId, balanceWp: w.balanceWp, frozenWp: w.frozenWp };
     }
 
-    // 🆕 Admin only: сброс frozen баланса (только для админов)
+    // 🆕 Сброс frozen баланса (возврат замороженных средств)
+    @Post('reset-frozen')
+    async resetFrozen(@Headers('authorization') auth?: string) {
+        const userId = getUserIdFromToken(auth);
+        if (!userId) throw new BadRequestException('Unauthorized');
+        
+        const result = await this.wallets.resetFrozen(userId);
+        
+        // 📝 Логируем действие пользователя
+        console.log(`[reset-frozen] User ${userId.slice(0,8)}... returned ${result.returnedVp} VP`);
+        
+        return result;
+    }
+
+    // 🆕 Admin only: сброс frozen баланса для любого пользователя
     @Post('admin/reset-frozen')
-    async resetFrozen(@Headers('authorization') auth?: string, @Body() body?: { targetUserId?: string }) {
+    async adminResetFrozen(@Headers('authorization') auth?: string, @Body() body?: { targetUserId?: string }) {
         const userId = getUserIdFromToken(auth);
         // TODO: проверка что userId - это админ
         const targetUserId = body?.targetUserId || userId;
