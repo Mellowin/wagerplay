@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Headers, Body, BadRequestException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { WalletsService } from './wallets.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -6,6 +7,8 @@ import { UserStats } from '../users/user-stats.entity';
 import { Wallet } from './wallet.entity';
 import { getUserIdFromToken } from '../common/token.utils';
 
+@ApiTags('Wallets')
+@ApiBearerAuth('JWT-auth')
 @Controller('wallet')
 export class WalletsController {
     constructor(
@@ -14,6 +17,8 @@ export class WalletsController {
         @InjectRepository(Wallet) private walletRepo: Repository<Wallet>,
     ) { }
 
+    @ApiOperation({ summary: 'Get wallet balance', description: 'Returns current balance and frozen amount' })
+    @ApiResponse({ status: 200, description: 'Balance retrieved' })
     @Get()
     async me(@Headers('authorization') auth?: string) {
         const userId = getUserIdFromToken(auth);
@@ -25,7 +30,8 @@ export class WalletsController {
         return { userId, balanceWp: w.balanceWp, frozenWp: w.frozenWp };
     }
 
-    // 🆕 Сброс frozen баланса (возврат замороженных средств)
+    @ApiOperation({ summary: 'Reset frozen balance', description: 'Return frozen stake to available balance' })
+    @ApiResponse({ status: 200, description: 'Frozen balance returned' })
     @Post('reset-frozen')
     async resetFrozen(@Headers('authorization') auth?: string) {
         const userId = getUserIdFromToken(auth);
@@ -39,7 +45,7 @@ export class WalletsController {
         return result;
     }
 
-    // 🆕 Admin only: сброс frozen баланса для любого пользователя
+    @ApiOperation({ summary: 'Admin: reset frozen balance', description: 'Admin can reset frozen balance for any user' })
     @Post('admin/reset-frozen')
     async adminResetFrozen(@Headers('authorization') auth?: string, @Body() body?: { targetUserId?: string }) {
         const userId = getUserIdFromToken(auth);
@@ -49,7 +55,8 @@ export class WalletsController {
         return result;
     }
 
-    // 🆕 Сверка баланса: ожидаемый vs фактический
+    @ApiOperation({ summary: 'Reconcile balance', description: 'Compare actual balance with expected based on game history' })
+    @ApiResponse({ status: 200, description: 'Reconciliation data' })
     @Get('reconcile')
     async reconcile(@Headers('authorization') auth?: string) {
         const userId = getUserIdFromToken(auth);

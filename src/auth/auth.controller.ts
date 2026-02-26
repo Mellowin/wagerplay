@@ -1,4 +1,5 @@
 import { Controller, Post, Get, Patch, Body, Query, Headers, BadRequestException, Param } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -26,11 +27,15 @@ function getUserIdFromToken(authHeader?: string): string {
   }
 }
 
+@ApiTags('Authentication')
+@ApiBearerAuth('JWT-auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  // Регистрация
+  @ApiOperation({ summary: 'Register new user', description: 'Create account with email and password' })
+  @ApiResponse({ status: 201, description: 'User registered successfully' })
+  @ApiResponse({ status: 400, description: 'Email and password are required' })
   @Post('register')
   async register(@Body() body: { email: string; password: string; username?: string }) {
     if (!body.email || !body.password) {
@@ -51,7 +56,9 @@ export class AuthController {
     return this.auth.verifyEmail(token);
   }
 
-  // Логин
+  @ApiOperation({ summary: 'Login user', description: 'Authenticate with email and password' })
+  @ApiResponse({ status: 200, description: 'Login successful, returns JWT token' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials' })
   @Post('login')
   async login(@Body() body: { email: string; password: string }) {
     if (!body.email || !body.password) {

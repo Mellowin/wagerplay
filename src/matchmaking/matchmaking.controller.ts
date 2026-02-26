@@ -1,12 +1,17 @@
 import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { MatchmakingService } from './matchmaking.service';
 import { SubmitMoveDto } from './dto/submit-move.dto';
 import { getUserIdFromToken } from '../common/token.utils';
 
+@ApiTags('Matchmaking')
+@ApiBearerAuth('JWT-auth')
 @Controller('matchmaking')
 export class MatchmakingController {
     constructor(private mm: MatchmakingService) { }
 
+    @ApiOperation({ summary: 'Join matchmaking queue', description: 'Join queue for Rock Paper Scissors match' })
+    @ApiResponse({ status: 200, description: 'Joined queue or match created' })
     @Post('quickplay')
     async quickplay(
         @Headers('authorization') auth: string,
@@ -16,6 +21,7 @@ export class MatchmakingController {
         return this.mm.quickPlay(userId, body.playersCount, body.stakeVp);
     }
 
+    @ApiOperation({ summary: 'Get match audit log', description: 'Returns financial audit for match' })
     @Get('match/:id/audit')
     async audit(@Param('id') id: string) {
         return this.mm.getAudit(id);
@@ -32,11 +38,13 @@ export class MatchmakingController {
         return this.mm.fallbackToBotIfTimedOut(id);
     }
 
+    @ApiOperation({ summary: 'Get match details', description: 'Returns match state by ID' })
     @Get('match/:id')
     async match(@Param('id') id: string) {
         return this.mm.getMatchOrThrow(id);
     }
 
+    @ApiOperation({ summary: 'Submit move', description: 'Submit ROCK, PAPER or SCISSORS move' })
     @Post('match/:id/move')
     async move(
         @Param('id') id: string,
@@ -65,6 +73,7 @@ export class MatchmakingController {
         return result;
     }
 
+    @ApiOperation({ summary: 'Get active state', description: 'Check if user is in queue or active match' })
     @Get('active')
     async getActiveState(@Headers('authorization') auth: string) {
         const userId = getUserIdFromToken(auth);
@@ -79,6 +88,7 @@ export class MatchmakingController {
         return this.mm.getOnlineCount();
     }
 
+    @ApiOperation({ summary: 'Get match history', description: 'Returns user\'s match history' })
     @Get('history')
     async getMatchHistory(
         @Headers('authorization') auth: string,
