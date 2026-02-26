@@ -1530,6 +1530,234 @@
             margin-bottom: 10px;
             opacity: 0.9;
         }
+
+        /* ==========================================
+           📱 MOBILE RESPONSIVE FIXES
+           ========================================== */
+        @media (max-width: 600px) {
+            /* Header fixes */
+            .header-row {
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 0 10px;
+                margin-top: 60px; /* Space for fixed top buttons */
+            }
+            
+            .header-row h1 {
+                font-size: 1.4em;
+            }
+            
+            /* Language dropdown - move to top left */
+            .lang-dropdown-container {
+                top: 10px;
+                left: 10px;
+            }
+            
+            .lang-dropdown-btn {
+                padding: 6px 10px;
+                font-size: 0.85em;
+            }
+            
+            /* Burger menu - move closer on mobile */
+            .burger-menu-container {
+                top: 10px;
+                right: 60px;
+            }
+            
+            .burger-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 1.2em;
+            }
+            
+            /* Sound toggle - smaller on mobile */
+            .sound-toggle {
+                top: 10px;
+                right: 10px;
+                width: 36px;
+                height: 36px;
+                font-size: 1.2em;
+            }
+            
+            /* Online counter - move below sound toggle */
+            .online-counter {
+                top: 50px;
+                right: 10px;
+                padding: 4px 8px;
+                font-size: 0.8em;
+            }
+            
+            /* Balance card */
+            .balance-card {
+                padding: 15px;
+                margin: 10px;
+            }
+            
+            .balance-display {
+                font-size: 2em;
+            }
+            
+            /* Controls - fix button overlap */
+            .controls {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+            }
+            
+            .auth-buttons {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+                width: 100%;
+            }
+            
+            .auth-buttons .btn {
+                padding: 8px 12px;
+                font-size: 0.85em;
+                flex: 1;
+                min-width: 100px;
+                max-width: 150px;
+            }
+            
+            /* User info row - fix button overlap */
+            .user-info {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+                justify-content: center;
+                align-items: center;
+                width: 100%;
+            }
+            
+            .user-info .btn {
+                padding: 6px 10px;
+                font-size: 0.8em;
+                flex: 1;
+                min-width: 80px;
+                max-width: 120px;
+            }
+            
+            .user-email {
+                font-size: 0.85em;
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+                word-break: break-all;
+            }
+            
+            /* User avatar mini */
+            .user-avatar-mini {
+                width: 28px;
+                height: 28px;
+            }
+            
+            /* Game controls row */
+            .game-controls-row {
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: center;
+            }
+            
+            .dropdown-play {
+                margin: 0 !important;
+            }
+            
+            .btn-play-main, .btn-stake-main {
+                padding: 10px 15px;
+                font-size: 0.9em;
+            }
+            
+            /* Theme toggle */
+            .theme-toggle {
+                width: 32px;
+                height: 32px;
+                font-size: 1em;
+            }
+            
+            /* Container padding */
+            .container {
+                padding: 10px;
+            }
+            
+            /* Game content */
+            #gameContent {
+                padding: 15px;
+            }
+            
+            /* Chat */
+            .chat-container {
+                height: 200px;
+            }
+            
+            .chat-header {
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+            
+            .chat-tabs {
+                flex-wrap: wrap;
+                gap: 3px;
+            }
+            
+            .chat-tab {
+                padding: 4px 8px;
+                font-size: 0.8em;
+            }
+            
+            /* Modal */
+            .modal {
+                padding: 10px;
+            }
+            
+            .modal-content {
+                max-height: 90vh;
+            }
+            
+            /* Buttons */
+            .btn {
+                padding: 8px 12px;
+                font-size: 0.9em;
+            }
+            
+            /* Player badge */
+            .player-count-badge {
+                width: 20px;
+                height: 20px;
+                font-size: 0.75em;
+            }
+            
+            /* Waiting screen text */
+            .waiting {
+                padding: 20px;
+            }
+            
+            .waiting div {
+                font-size: 1.2em !important;
+            }
+        }
+        
+        /* Extra small devices */
+        @media (max-width: 375px) {
+            .header-row h1 {
+                font-size: 1.2em;
+            }
+            
+            .balance-display {
+                font-size: 1.6em;
+            }
+            
+            .btn-play-main, .btn-stake-main {
+                padding: 8px 10px;
+                font-size: 0.8em;
+            }
+            
+            .user-info .btn {
+                padding: 5px 8px;
+                font-size: 0.75em;
+            }
+        }
     </style>
 </head>
 <body>
