@@ -200,6 +200,20 @@ export class MatchmakingService {
         return `match:${matchId}`;
     }
 
+    // 🆕 SCAN вместо KEYS для production (не блокирует Redis)
+    private async scanKeys(pattern: string): Promise<string[]> {
+        const keys: string[] = [];
+        let cursor = '0';
+        
+        do {
+            const result = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+            cursor = result[0];
+            keys.push(...result[1]);
+        } while (cursor !== '0');
+        
+        return keys;
+    }
+
     private randomMove(): Move {
         const variants: Move[] = ['ROCK', 'PAPER', 'SCISSORS'];
         return variants[Math.floor(Math.random() * variants.length)];
@@ -347,7 +361,7 @@ export class MatchmakingService {
     // 🆕 Периодическая очистка зависших матчей (вызывать из cron или при старте)
     async cleanupOrphanedMatches(maxAgeMinutes: number = 10): Promise<number> {
         const pattern = this.matchKey('*');
-        const keys = await this.redis.keys(pattern);
+        const keys = await this.scanKeys(pattern);
         let cleaned = 0;
         const now = Date.now();
         const maxAgeMs = maxAgeMinutes * 60 * 1000;
@@ -387,8 +401,7 @@ export class MatchmakingService {
     async processQueueTimeouts(): Promise<void> {
         if (this.isShuttingDown) return;
         
-        // 🐛 DEBUG: Логируем вызов метода
-        console.log(`[processQueueTimeouts] Tick at ${new Date().toISOString()}`);
+        // Логируем только при наличии игроков в очереди (не каждый tick)
         
         for (const playersCount of ALLOWED_PLAYERS) {
             for (const stakeVp of ALLOWED_STAKES) {
@@ -399,10 +412,7 @@ export class MatchmakingService {
                     // Проверяем есть ли игроки в очереди
                     const len = await this.redis.llen(q);
                     
-                    // 🐛 DEBUG: Логируем все непустые очереди
-                    if (len > 0) {
-                        console.log(`[processQueueTimeouts] Queue ${q}: ${len} players`);
-                    }
+                    
                     
                     if (len === 0) continue;
                     
@@ -746,7 +756,8 @@ export class MatchmakingService {
         for (const playersCount of ALLOWED_PLAYERS) {
             for (const stakeVp of ALLOWED_STAKES) {
                 const q = this.qKey(playersCount, stakeVp);
-                const ticketIds = await this.redis.lrange(q, 0, -1);
+                // Используем lrange с ограничением для производительности
+                const ticketIds = await this.redis.lrange(q, 0, 99);
                 
                 for (const tId of ticketIds) {
                     const ticket = await this.getTicket(tId);
@@ -813,7 +824,7 @@ export class MatchmakingService {
 
         // 2. Проверяем активные матчи
         // Получаем все ключи матчей
-        const matchKeys = await this.redis.keys('match:*');
+        const matchKeys = await this.scanKeys('match:*');
         for (const key of matchKeys) {
             const raw = await this.redis.get(key);
             if (raw) {
@@ -850,7 +861,7 @@ export class MatchmakingService {
         }
         
         // Проверяем активные матчи
-        const matchKeys = await this.redis.keys('match:*');
+        const matchKeys = await this.scanKeys('match:*');
         for (const key of matchKeys) {
             const mData = await this.redis.get(key);
             if (mData) {
@@ -1228,21 +1239,41 @@ export class MatchmakingService {
     // Fallback: если тикет висит >BOT_TIMEOUT_SEC — создаём BOT_MATCH
     async fallbackToBotIfTimedOut(ticketId: string) {
         const BOT_TIMEOUT_SEC = 30;
+        const MAX_WAIT_MS = 25000; // Максимум 25 секунд ожидания
+        const startTime = Date.now();
 
-        const t = await this.getTicket(ticketId);
+        let t = await this.getTicket(ticketId);
         if (!t) {
             console.log(`[fallback] Ticket ${ticketId} not found - match may already be created`);
             return { status: 'ALREADY_IN_MATCH' };
         }
 
-        const ageSec = (Date.now() - t.createdAt) / 1000;
-        
-        // ⏱️ Ждём пока не пройдёт 20 секунд с момента создания тикета
-        if (ageSec < 20) {
-            const msLeft = Math.ceil((20 - ageSec) * 1000);
-            console.log(`[fallback] Waiting ${msLeft}ms for 20sec threshold...`);
-            await new Promise(r => setTimeout(r, msLeft));
-            return this.fallbackToBotIfTimedOut(ticketId);
+        // ⏱️ Цикл ожидания вместо рекурсии
+        while (true) {
+            const ageSec = (Date.now() - t.createdAt) / 1000;
+            
+            // Проверяем таймаут общего ожидания
+            if (Date.now() - startTime > MAX_WAIT_MS) {
+                console.log(`[fallback] Max wait time exceeded, proceeding...`);
+                break;
+            }
+            
+            // Ждём пока не пройдёт 20 секунд с момента создания тикета
+            if (ageSec < 20) {
+                const msLeft = Math.ceil((20 - ageSec) * 1000);
+                console.log(`[fallback] Waiting ${msLeft}ms for 20sec threshold...`);
+                await new Promise(r => setTimeout(r, Math.min(msLeft, 5000))); // max 5s за раз
+                
+                // Перепроверяем тикет
+                t = await this.getTicket(ticketId);
+                if (!t) {
+                    console.log(`[fallback] Ticket ${ticketId} disappeared during wait`);
+                    return { status: 'ALREADY_IN_MATCH' };
+                }
+                continue;
+            }
+            
+            break;
         }
         
         // ✅ После 20 сек пробуем собрать PvP матч (force=true позволяет создать с < 5 игроками)
@@ -2283,7 +2314,7 @@ export class MatchmakingService {
     // 🆕 Получение активных матчей пользователя (для проверки зависших)
     async getUserActiveMatches(userId: string): Promise<Match[]> {
         const pattern = this.matchKey('*');
-        const keys = await this.redis.keys(pattern);
+        const keys = await this.scanKeys(pattern);
         const activeMatches: Match[] = [];
 
         for (const key of keys) {

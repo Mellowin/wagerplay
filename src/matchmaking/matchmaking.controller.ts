@@ -1,28 +1,7 @@
-import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { MatchmakingService } from './matchmaking.service';
 import { SubmitMoveDto } from './dto/submit-move.dto';
-
-function getTokenUserId(authHeader?: string): string {
-    if (!authHeader) return '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-    const trimmed = token.trim();
-    
-    // Если это plain UUID (гостевой токен), возвращаем как есть
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (uuidRegex.test(trimmed)) {
-        return trimmed;
-    }
-    
-    // Иначе пробуем декодировать как JWT
-    try {
-        const base64Payload = trimmed.split('.')[1];
-        if (!base64Payload) return '';
-        const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString());
-        return payload.sub || '';
-    } catch {
-        return '';
-    }
-}
+import { getUserIdFromToken } from '../common/token.utils';
 
 @Controller('matchmaking')
 export class MatchmakingController {
@@ -33,7 +12,7 @@ export class MatchmakingController {
         @Headers('authorization') auth: string,
         @Body() body: { playersCount: number; stakeVp: number },
     ) {
-        const userId = getTokenUserId(auth);
+        const userId = getUserIdFromToken(auth);
         return this.mm.quickPlay(userId, body.playersCount, body.stakeVp);
     }
 
@@ -44,7 +23,7 @@ export class MatchmakingController {
 
     @Get('ticket/:id')
     async ticket(@Param('id') id: string, @Headers('authorization') auth: string) {
-        const userId = getTokenUserId(auth);
+        const userId = getUserIdFromToken(auth);
         return this.mm.getTicketForUser(id, userId);
     }
 
@@ -64,7 +43,7 @@ export class MatchmakingController {
         @Headers('authorization') auth: string,
         @Body() body: SubmitMoveDto,
     ) {
-        const userId = getTokenUserId(auth);
+        const userId = getUserIdFromToken(auth);
         return this.mm.submitMove(id, userId, body.move);
     }
 
@@ -80,7 +59,7 @@ export class MatchmakingController {
         @Headers('authorization') auth: string,
         @Body() body: { stakeVp?: number }
     ) {
-        const userId = getTokenUserId(auth);
+        const userId = getUserIdFromToken(auth);
         // Создаем матч с timestamp 15 минут назад
         const result = await this.mm.createTestOrphanedMatch(userId, body.stakeVp || 100);
         return result;
@@ -88,7 +67,7 @@ export class MatchmakingController {
 
     @Get('active')
     async getActiveState(@Headers('authorization') auth: string) {
-        const userId = getTokenUserId(auth);
+        const userId = getUserIdFromToken(auth);
         if (!userId) {
             return { error: 'Unauthorized' };
         }
@@ -103,13 +82,36 @@ export class MatchmakingController {
     @Get('history')
     async getMatchHistory(
         @Headers('authorization') auth: string,
-        @Query('userId') userId: string,
     ) {
-        const tokenUserId = getTokenUserId(auth);
-        if (!tokenUserId || tokenUserId !== userId) {
+        const userId = getUserIdFromToken(auth);
+        if (!userId) {
             return { error: 'Unauthorized' };
         }
         return this.mm.getUserMatchHistory(userId);
+    }
+
+    @Post('test/force-match')
+    async forceMatch(
+        @Headers('authorization') auth: string,
+        @Body() body: { playersCount: number; stakeVp: number },
+    ) {
+        const userId = getUserIdFromToken(auth);
+        if (!userId) throw new BadRequestException('Unauthorized');
+        
+        // Only for testing - creates match immediately with force=true
+        // Retry logic: wait for lock to be released and match to be created
+        let attempts = 0;
+        let result: string | null = null;
+        
+        while (attempts < 20 && !result) {  // 20 attempts = max 2 seconds
+            result = await this.mm.tryAssembleMatch(body.playersCount, body.stakeVp, true);
+            if (!result) {
+                attempts++;
+                await new Promise(r => setTimeout(r, 50));
+            }
+        }
+        
+        return { status: result ? 'OK' : 'FAILED', result, attempts };
     }
 
 }

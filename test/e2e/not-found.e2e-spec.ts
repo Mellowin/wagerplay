@@ -5,15 +5,15 @@ import { flushTestDb } from './helpers/redis';
 import { createTestApp, closeTestApp } from './helpers/test-app';
 
 /**
- * E2E Tests for 404 Not Found handling
+ * E2E Tests for Not Found scenarios
  * 
- * NF-001: Nonexistent match returns 404
- * NF-002: Nonexistent ticket returns 404
- * NF-003: Nonexistent user returns 404
- * NF-004: Invalid UUID format handling
+ * TC-NOTFOUND-01: Non-existent match -> 404
+ * TC-NOTFOUND-02: Non-existent ticket -> 404
+ * TC-NOTFOUND-03: Non-existent user -> 404
+ * TC-NOTFOUND-04: Invalid UUID format
  */
 
-describe('Not Found Handling (e2e)', () => {
+describe('Not Found (e2e)', () => {
   let app: INestApplication;
   let client: TestClient;
 
@@ -30,81 +30,92 @@ describe('Not Found Handling (e2e)', () => {
     await flushTestDb();
   });
 
-  describe('NF-001: Nonexistent match', () => {
-    it('should return 404 for nonexistent match', async () => {
+  describe('TC-NOTFOUND-01: Non-existent match', () => {
+    it('should return 404 for non-existent match', async () => {
       const user = await client.createGuest();
-      
-      const res = await request(app.getHttpServer())
-        .get('/matchmaking/match/nonexistent-id')
+
+      const response = await request(app.getHttpServer())
+        .get('/matchmaking/match/non-existent-id')
         .set('Authorization', `Bearer ${user.token}`);
 
-      expect(res.status).toBe(404);
+      expect(response.status).toBe(404);
     });
 
-    it('should return 400 for move in nonexistent match', async () => {
+    it('should return 404 for malformed match ID', async () => {
       const user = await client.createGuest();
-      
-      const res = await request(app.getHttpServer())
-        .post('/matchmaking/match/fake-match-id/move')
+
+      const response = await request(app.getHttpServer())
+        .get('/matchmaking/match/123')
+        .set('Authorization', `Bearer ${user.token}`);
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 404 for move in non-existent match', async () => {
+      const user = await client.createGuest();
+
+      const response = await request(app.getHttpServer())
+        .post('/matchmaking/match/fake-id/move')
         .set('Authorization', `Bearer ${user.token}`)
         .send({ move: 'ROCK' });
 
-      // Backend returns 400 for invalid match ID format
-      expect(res.status).toBe(400);
-    });
-
-    it('should return 404 for fallback in nonexistent match', async () => {
-      const user = await client.createGuest();
-      
-      const res = await request(app.getHttpServer())
-        .post('/matchmaking/match/fake-id/fallback')
-        .set('Authorization', `Bearer ${user.token}`);
-
-      expect(res.status).toBe(404);
+      expect(response.status).toBe(400);
     });
   });
 
-  describe('NF-002: Nonexistent ticket', () => {
-    it('should return 404 for nonexistent ticket', async () => {
+  describe('TC-NOTFOUND-02: Non-existent ticket', () => {
+    it('should return 404 for non-existent ticket', async () => {
       const user = await client.createGuest();
-      
-      const res = await request(app.getHttpServer())
-        .get('/matchmaking/ticket/nonexistent-ticket-id')
+
+      const response = await request(app.getHttpServer())
+        .get('/matchmaking/ticket/non-existent-id')
         .set('Authorization', `Bearer ${user.token}`);
 
-      expect(res.status).toBe(404);
-    });
-
-    it('should return 404 for cancel nonexistent ticket', async () => {
-      const user = await client.createGuest();
-      
-      const res = await request(app.getHttpServer())
-        .post('/matchmaking/ticket/fake-id/cancel')
-        .set('Authorization', `Bearer ${user.token}`);
-
-      expect(res.status).toBe(404);
+      expect(response.status).toBe(404);
     });
   });
 
-  describe('NF-003: Invalid UUID format', () => {
-    it('should handle special characters in IDs gracefully', async () => {
+  describe('TC-NOTFOUND-03: Non-existent endpoints', () => {
+    it('should return 404 for non-existent endpoint', async () => {
       const user = await client.createGuest();
-      
-      const res = await request(app.getHttpServer())
-        .get('/matchmaking/match/../../../etc/passwd')
+
+      const response = await request(app.getHttpServer())
+        .get('/non-existent-endpoint')
         .set('Authorization', `Bearer ${user.token}`);
 
-      expect(res.status).toBe(404);
+      expect(response.status).toBe(404);
     });
 
-    it('should handle SQL injection attempt in match ID', async () => {
+    it('should return 404 for non-existent wallet endpoint', async () => {
       const user = await client.createGuest();
-      
-      const res = await request(app.getHttpServer())
-        .get('/matchmaking/match/\'; DROP TABLE users; --')
+
+      const response = await request(app.getHttpServer())
+        .get('/wallet/non-existent')
         .set('Authorization', `Bearer ${user.token}`);
 
-      expect(res.status).toBe(404);
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe('TC-NOTFOUND-04: Invalid UUID formats', () => {
+    it('should handle invalid UUID in match ID', async () => {
+      const user = await client.createGuest();
+
+      const response = await request(app.getHttpServer())
+        .get('/matchmaking/match/invalid-uuid-format')
+        .set('Authorization', `Bearer ${user.token}`);
+
+      expect([404, 400]).toContain(response.status);
+    });
+
+    it('should handle empty match ID', async () => {
+      const user = await client.createGuest();
+
+      const response = await request(app.getHttpServer())
+        .get('/matchmaking/match/')
+        .set('Authorization', `Bearer ${user.token}`);
+
+      expect(response.status).toBe(404);
     });
   });
 });

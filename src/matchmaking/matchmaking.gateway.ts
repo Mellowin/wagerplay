@@ -11,6 +11,7 @@ import { Server, Socket } from 'socket.io';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { MatchmakingService } from './matchmaking.service';
+import { getUserIdFromToken } from '../common/token.utils';
 
 type Move = 'ROCK' | 'PAPER' | 'SCISSORS';
 
@@ -43,7 +44,7 @@ export class MatchmakingGateway {
       return;
     }
 
-    const userId = token.toString().trim();
+    const userId = getUserIdFromToken(token);
     const displayName = (socket.handshake.auth?.displayName || socket.handshake.query?.displayName) as string | undefined;
     socket.data.userId = userId;
     socket.data.displayName = displayName;

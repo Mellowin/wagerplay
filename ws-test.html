@@ -12,12 +12,189 @@
             box-sizing: border-box;
         }
 
+        /* ==========================================
+           🎨 CSS Variables for Theming
+           ========================================== */
+        :root {
+            /* Dark theme (default) */
+            --bg-gradient-start: #1e3c72;
+            --bg-gradient-end: #2a5298;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.8);
+            --card-bg: rgba(255,255,255,0.1);
+            --card-border: rgba(255,255,255,0.2);
+            --btn-primary-gradient-start: #667eea;
+            --btn-primary-gradient-end: #764ba2;
+            --btn-primary-shadow: rgba(102,126,234,0.4);
+            --btn-secondary-bg: rgba(255,255,255,0.2);
+            --input-bg: rgba(255,255,255,0.1);
+            --input-border: rgba(255,255,255,0.3);
+            --chat-bg: rgba(0,0,0,0.2);
+            --modal-overlay: rgba(0,0,0,0.8);
+            --success-color: #4ade80;
+            --danger-color: #f87171;
+            --warning-color: #fbbf24;
+            --gold-color: #ffd700;
+        }
+
+        [data-theme="light"] {
+            /* Light blue theme */
+            --bg-gradient-start: #e0f2fe;
+            --bg-gradient-end: #bae6fd;
+            --text-primary: #0c4a6e;
+            --text-secondary: rgba(12,74,110,0.7);
+            --card-bg: rgba(255,255,255,0.7);
+            --card-border: rgba(56,189,248,0.3);
+            --btn-primary-gradient-start: #0284c7;
+            --btn-primary-gradient-end: #0369a1;
+            --btn-primary-shadow: rgba(2,132,199,0.3);
+            --btn-secondary-bg: rgba(186,230,253,0.5);
+            --input-bg: rgba(255,255,255,0.9);
+            --input-border: rgba(56,189,248,0.4);
+            --chat-bg: rgba(224,242,254,0.8);
+            --modal-overlay: rgba(12,74,110,0.5);
+            --success-color: #059669;
+            --danger-color: #dc2626;
+            --warning-color: #d97706;
+            --gold-color: #b45309;
+        }
+
+        /* 🍞 Toast Notifications */
+        .toast {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            min-width: 280px;
+            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            animation: toastSlideIn 0.3s ease;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .toast.success {
+            border-left: 4px solid var(--success-color);
+        }
+
+        .toast.error {
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .toast.warning {
+            border-left: 4px solid var(--warning-color);
+        }
+
+        .toast.info {
+            border-left: 4px solid var(--btn-primary-gradient-start);
+        }
+
+        .toast-icon {
+            font-size: 1.5em;
+        }
+
+        .toast-content {
+            flex: 1;
+        }
+
+        .toast-title {
+            font-weight: 600;
+            font-size: 0.95em;
+            margin-bottom: 2px;
+        }
+
+        .toast-message {
+            font-size: 0.85em;
+            opacity: 0.9;
+        }
+
+        .toast-close {
+            background: none;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes toastSlideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes toastSlideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .toast.hiding {
+            animation: toastSlideOut 0.3s ease forwards;
+        }
+
+        /* Light theme button overrides */
+        [data-theme="light"] .btn {
+            box-shadow: 0 2px 8px rgba(2,132,199,0.2);
+        }
+
+        [data-theme="light"] .btn-primary {
+            box-shadow: 0 4px 15px rgba(2,132,199,0.35);
+        }
+
+        [data-theme="light"] .btn-secondary {
+            border: 1px solid rgba(56,189,248,0.5);
+            color: #0369a1;
+        }
+
+        [data-theme="light"] .balance-card {
+            box-shadow: 0 4px 20px rgba(2,132,199,0.15);
+        }
+
+        [data-theme="light"] .game-log {
+            background: rgba(186,230,253,0.4);
+            border: 1px solid rgba(56,189,248,0.3);
+        }
+
+        [data-theme="light"] .stats-tab {
+            color: var(--text-secondary);
+        }
+
+        [data-theme="light"] .stats-tab.active {
+            color: var(--gold-color);
+            border-bottom-color: var(--gold-color);
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
             min-height: 100vh;
-            color: white;
+            color: var(--text-primary);
             padding: 20px;
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
         .container {
@@ -25,46 +202,77 @@
             margin: 0 auto;
         }
 
-        h1 {
-            text-align: center;
+        /* Header with theme toggle */
+        .header-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
             margin-bottom: 10px;
+            position: relative;
+        }
+
+        h1 {
             font-size: 2.5em;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
+        .theme-toggle {
+            position: absolute;
+            right: 0;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.3em;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+            background: var(--btn-secondary-bg);
+        }
+
         .subtitle {
             text-align: center;
-            opacity: 0.8;
+            color: var(--text-secondary);
             margin-bottom: 30px;
         }
 
         /* Balance Card */
         .balance-card {
-            background: rgba(255,255,255,0.1);
+            background: var(--card-bg);
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 20px;
             margin-bottom: 20px;
             text-align: center;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid var(--card-border);
+            transition: background 0.3s ease, border 0.3s ease;
         }
 
         .balance-label {
             font-size: 0.9em;
-            opacity: 0.8;
+            color: var(--text-secondary);
             margin-bottom: 5px;
         }
 
         .balance-amount {
             font-size: 2.5em;
             font-weight: bold;
-            color: #ffd700;
-            text-shadow: 0 0 20px rgba(255,215,0,0.5);
+            color: var(--gold-color);
+            text-shadow: 0 0 20px rgba(234, 179, 8, 0.5);
         }
 
         .balance-frozen {
             font-size: 0.9em;
-            opacity: 0.7;
+            color: var(--text-secondary);
             margin-top: 5px;
         }
 
@@ -90,14 +298,14 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--btn-primary-gradient-start) 0%, var(--btn-primary-gradient-end) 100%);
             color: white;
-            box-shadow: 0 4px 15px rgba(102,126,234,0.4);
+            box-shadow: 0 4px 15px var(--btn-primary-shadow);
         }
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102,126,234,0.6);
+            box-shadow: 0 6px 20px var(--btn-primary-shadow);
         }
 
         .btn-success {
@@ -628,6 +836,44 @@
         }
 
         /* Stats Modal */
+        .stats-tabs {
+            display: flex;
+            gap: 5px;
+            padding: 0 20px;
+            border-bottom: 1px solid var(--card-border);
+            background: var(--card-bg);
+        }
+
+        .stats-tab {
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 0.95em;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .stats-tab:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .stats-tab.active {
+            color: var(--gold-color);
+            border-bottom-color: var(--gold-color);
+            font-weight: 600;
+        }
+
+        .stats-tab-content {
+            display: none;
+        }
+
+        .stats-tab-content.active {
+            display: block;
+        }
+
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -998,6 +1244,24 @@
             animation: slideUp 0.3s ease;
         }
 
+        .modal-large {
+            max-width: 500px;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .modal-large .modal-header {
+            padding: 20px 30px;
+            margin: 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .modal-large .modal-body {
+            padding: 20px 30px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
         @keyframes slideUp {
             from {
                 opacity: 0;
@@ -1293,18 +1557,6 @@
                 <span>📋</span>
                 <span id="burgerLogsText">Логи</span>
             </div>
-            <div class="dropdown-item" onclick="showAuditModal(); closeMenu();">
-                <span>📜</span>
-                <span id="burgerAuditText">Проверка</span>
-            </div>
-            <div class="dropdown-item" onclick="showReconcileModal(); closeMenu();">
-                <span>⚖️</span>
-                <span id="burgerReconcileText">Сверка</span>
-            </div>
-            <div class="dropdown-item" onclick="showHistoryModal(); closeMenu();">
-                <span>🎮</span>
-                <span id="burgerHistoryText">История</span>
-            </div>
         </div>
     </div>
 
@@ -1328,7 +1580,12 @@
     </div>
 
     <div class="container">
-        <h1>🎮 WagerPlay</h1>
+        <div class="header-row">
+            <h1>🎮 WagerPlay</h1>
+            <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Переключить тему">
+                <span id="themeIcon">☀️</span>
+            </button>
+        </div>
         <p class="subtitle">Rock Paper Scissors - Играй и выигрывай!</p>
 
         <!-- Balance -->
@@ -1487,6 +1744,154 @@
         };
         let currentLang = 'ru';
 
+        // 🎨 Theme Management
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+            
+            // Play sound for feedback
+            if (soundEnabled && hasUserInteracted) {
+                sounds.click();
+            }
+        }
+
+        function updateThemeIcon(theme) {
+            const icon = document.getElementById('themeIcon');
+            if (icon) {
+                icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+            }
+        }
+
+        // 🎉 Confetti Animation
+        const confettiCanvas = document.getElementById('confettiCanvas');
+        const confettiCtx = confettiCanvas ? confettiCanvas.getContext('2d') : null;
+        let confettiParticles = [];
+        let confettiAnimationId = null;
+
+        function resizeConfettiCanvas() {
+            if (confettiCanvas) {
+                confettiCanvas.width = window.innerWidth;
+                confettiCanvas.height = window.innerHeight;
+            }
+        }
+
+        window.addEventListener('resize', resizeConfettiCanvas);
+        resizeConfettiCanvas();
+
+        function createConfettiParticle() {
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b', '#eb4d4b', '#6c5ce7', '#00b894'];
+            return {
+                x: Math.random() * confettiCanvas.width,
+                y: -20,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                size: Math.random() * 10 + 5,
+                speedY: Math.random() * 3 + 2,
+                speedX: Math.random() * 4 - 2,
+                rotation: Math.random() * 360,
+                rotationSpeed: Math.random() * 10 - 5
+            };
+        }
+
+        function updateConfetti() {
+            if (!confettiCtx) return;
+            
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+            
+            confettiParticles.forEach((p, index) => {
+                p.y += p.speedY;
+                p.x += p.speedX;
+                p.rotation += p.rotationSpeed;
+                
+                confettiCtx.save();
+                confettiCtx.translate(p.x, p.y);
+                confettiCtx.rotate((p.rotation * Math.PI) / 180);
+                confettiCtx.fillStyle = p.color;
+                confettiCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                confettiCtx.restore();
+                
+                if (p.y > confettiCanvas.height) {
+                    confettiParticles.splice(index, 1);
+                }
+            });
+            
+            if (confettiParticles.length > 0) {
+                confettiAnimationId = requestAnimationFrame(updateConfetti);
+            }
+        }
+
+        function startConfetti() {
+            if (!confettiCanvas || !confettiCtx) return;
+            
+            // Create 100 particles
+            for (let i = 0; i < 100; i++) {
+                confettiParticles.push(createConfettiParticle());
+            }
+            
+            if (!confettiAnimationId) {
+                updateConfetti();
+            }
+            
+            // Stop after 5 seconds
+            setTimeout(() => {
+                confettiParticles = [];
+                if (confettiAnimationId) {
+                    cancelAnimationFrame(confettiAnimationId);
+                    confettiAnimationId = null;
+                }
+                if (confettiCtx) {
+                    confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+                }
+            }, 5000);
+        }
+
+        // 🍞 Toast Notification System
+        function showToast(type, title, message, duration = 5000) {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const icons = {
+                success: '✅',
+                error: '❌',
+                warning: '⚠️',
+                info: 'ℹ️'
+            };
+            
+            toast.innerHTML = `
+                <span class="toast-icon">${icons[type] || 'ℹ️'}</span>
+                <div class="toast-content">
+                    <div class="toast-title">${title}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Play sound for important notifications
+            if (soundEnabled && hasUserInteracted && (type === 'success' || type === 'error')) {
+                sounds.click();
+            }
+            
+            // Auto remove
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+
         // Translations
         const i18n = {
             ru: {
@@ -1517,6 +1922,12 @@
                 rock: 'Камень',
                 paper: 'Бумага',
                 scissors: 'Ножницы',
+                victory: 'Победа!',
+                youWon: 'Вы победили!',
+                gameOver: 'Игра окончена',
+                betterLuck: 'В следующий раз повезет!',
+                matchFound: 'Матч найден!',
+                gameStarting: 'Игра начинается...',
                 playAgain: '🔄 Играть снова',
                 tie: '🤝 Ничья',
                 elimination: '⚔️ Выбывание',
@@ -1591,6 +2002,12 @@
                 rock: 'Rock',
                 paper: 'Paper',
                 scissors: 'Scissors',
+                victory: 'Victory!',
+                youWon: 'You won!',
+                gameOver: 'Game Over',
+                betterLuck: 'Better luck next time!',
+                matchFound: 'Match Found!',
+                gameStarting: 'Game is starting...',
                 playAgain: '🔄 Play Again',
                 tie: '🤝 Tie',
                 elimination: '⚔️ Elimination',
@@ -1665,6 +2082,12 @@
                 rock: '石头',
                 paper: '布',
                 scissors: '剪刀',
+                victory: '胜利!',
+                youWon: '你赢了!',
+                gameOver: '游戏结束',
+                betterLuck: '下次好运!',
+                matchFound: '找到比赛!',
+                gameStarting: '游戏开始...',
                 playAgain: '🔄 再玩一次',
                 tie: '🤝 平局',
                 elimination: '⚔️ 淘汰',
@@ -1823,13 +2246,9 @@
             const burgerBalanceText = document.getElementById('burgerBalanceText');
             const burgerStatsText = document.getElementById('burgerStatsText');
             const burgerLogsText = document.getElementById('burgerLogsText');
-            const burgerAuditText = document.getElementById('burgerAuditText');
-            const burgerReconcileText = document.getElementById('burgerReconcileText');
             if (burgerBalanceText) burgerBalanceText.textContent = t('balanceBtn').replace('💳 ', '');
             if (burgerStatsText) burgerStatsText.textContent = t('statsBtn').replace('📊 ', '');
             if (burgerLogsText) burgerLogsText.textContent = t('logsBtn').replace('📋 ', '');
-            if (burgerAuditText) burgerAuditText.textContent = t('auditBtn').replace('📜 ', '');
-            if (burgerReconcileText) burgerReconcileText.textContent = t('reconcileBtn').replace('⚖️ ', '');
             
             // Refresh match display if exists
             if (currentMatch) renderMatch(currentMatch);
@@ -2413,6 +2832,8 @@
 
         // Initialize on load
         window.onload = function() {
+            initTheme(); // 🎨 Initialize theme
+            
             // 🎵 Инициализация аудио при первом клике (требование Chrome)
             const initAudioOnFirstClick = () => {
                 hasUserInteracted = true;
@@ -2661,48 +3082,10 @@
         // Initial update
         setTimeout(updateOnlineCount, 1000);
 
-        // History Modal
+        // History Modal - now redirects to unified stats modal
         async function showHistoryModal() {
-            if (!userId) {
-                alert('Сначала войдите в систему');
-                return;
-            }
-            
-            const modal = document.getElementById('historyModal');
-            const list = document.getElementById('historyList');
-            list.innerHTML = '<div class="loading">Загрузка...</div>';
-            modal.classList.add('show');
-            
-            try {
-                const res = await fetch(`${API_URL}/matchmaking/history?userId=${userId}`, {
-                    headers: { 'Authorization': token }
-                });
-                const data = await res.json();
-                
-                if (!data.matches || data.matches.length === 0) {
-                    list.innerHTML = '<div class="empty-state">История матчей пуста</div>';
-                    return;
-                }
-                
-                list.innerHTML = data.matches.map(m => {
-                    const isWin = m.winnerId === userId;
-                    const profit = isWin ? (m.payout - m.stake) : -m.stake;
-                    const date = new Date(m.finishedAt).toLocaleString();
-                    
-                    return `
-                        <div class="history-item ${isWin ? 'win' : 'loss'}">
-                            <div class="history-result">${isWin ? '✅ Победа' : '❌ Поражение'}</div>
-                            <div class="history-details">
-                                <div>${date}</div>
-                                <div>Ставка: ${m.stake} VP | ${isWin ? 'Прибыль' : 'Проигрыш'}: ${profit > 0 ? '+' : ''}${profit} VP</div>
-                                <div>Раундов: ${m.rounds}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            } catch (e) {
-                list.innerHTML = '<div class="error">Ошибка загрузки истории</div>';
-            }
+            await showStatsModal();
+            await switchStatsTab('matches');
         }
 
         // Logging
@@ -2771,8 +3154,6 @@
             const btnBalance = document.getElementById('btnBalance');
             const btnStats = document.getElementById('btnStats');
             const btnLogs = document.getElementById('btnLogs');
-            const btnAudit = document.getElementById('btnAudit');
-            const btnReconcile = document.getElementById('btnReconcile');
             const balanceCard = document.querySelector('.balance-card');
             
             // Phase 1: Auth (Login/Register/Guest visible)
@@ -2816,10 +3197,6 @@
                 btnBalance.style.display = state.quickplay ? 'inline-block' : 'none';
                 btnBalance.disabled = !state.balance;
             }
-            if (btnStats) {
-                btnStats.style.display = state.quickplay ? 'inline-block' : 'none';
-                btnStats.disabled = !state.balance;
-            }
             const btnGoToProfile = document.getElementById('btnGoToProfile');
             if (btnGoToProfile) {
                 btnGoToProfile.style.display = state.quickplay ? 'inline-block' : 'none';
@@ -2830,14 +3207,6 @@
             if (btnLogs) {
                 btnLogs.style.display = state.quickplay ? 'inline-block' : 'none';
                 btnLogs.disabled = !state.logs;
-            }
-            if (btnAudit) {
-                btnAudit.style.display = state.quickplay ? 'inline-block' : 'none';
-                btnAudit.disabled = !state.balance;
-            }
-            if (btnReconcile) {
-                btnReconcile.style.display = state.quickplay ? 'inline-block' : 'none';
-                btnReconcile.disabled = !state.balance;
             }
             
             // Show balance card only after login
@@ -3130,7 +3499,12 @@
 
             // 🎮 МАТЧ НАЙДЕН! - показываем экран с отсчётом
             socket.on("match:found", (data) => {
-                // 🧹 Очищаем старый отсчёт если есть
+                showToast('success', t('matchFound') || 'Матч найден!', t('gameStarting') || 'Игра начинается...');
+                
+                // 🧹 Очищаем таймер поиска (при F5 восстановлении)
+                stopCountdown();
+                
+                // 🧹 Очищаем старый отсчёт матча если есть
                 if (matchCountdownInterval) {
                     clearInterval(matchCountdownInterval);
                     matchCountdownInterval = null;
@@ -3141,20 +3515,28 @@
                 
                 // 🛡️ Блокируем кнопки сразу при найденном матче (до match:start)
                 activeMatches.add(data.matchId);
+                matchId = data.matchId;  // Сохраняем для F5 recovery
                 console.log('[match:found] Added to activeMatches:', data.matchId, 'Size:', activeMatches.size);
                 setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                
+                // 🔄 Сохраняем состояние для F5 recovery (промежуточное состояние между searching и in-match)
+                localStorage.setItem('uiState', 'in-match');
+                
+                // 🔄 При RECONNECT используем countdown от сервера, иначе 5
+                const initialCount = (data.mode === 'RECONNECT' && data.countdown) ? data.countdown : 5;
+                console.log(`[match:found] Starting countdown: ${initialCount}s (mode: ${data.mode || 'normal'})`);
                 
                 // Показываем экран ожидания с большим таймером
                 document.getElementById('gameContent').innerHTML = `
                     <div class="waiting">
                         <div style="font-size: 2em; color: #ffd700; margin-bottom: 20px;">🎮 МАТЧ НАЙДЕН!</div>
-                        <div style="font-size: 4em; font-weight: bold; color: #00ff88;" id="matchCountdown">5</div>
+                        <div style="font-size: 4em; font-weight: bold; color: #00ff88;" id="matchCountdown">${initialCount}</div>
                         <div style="margin-top: 20px;">Приготовьтесь к игре...</div>
                     </div>
                 `;
                 
                 // Запускаем отсчёт
-                let count = 5;
+                let count = initialCount;
                 matchCountdownInterval = setInterval(() => {
                     count--;
                     const el = document.getElementById('matchCountdown');
@@ -3580,7 +3962,8 @@
             const updateTimer = () => {
                 const timerEl = document.getElementById('countdownTimer');
                 if (timerEl) {
-                    timerEl.textContent = `${t('searching')} ${remaining}s`;
+                    const searchingText = t('searching') || 'Поиск';
+                    timerEl.textContent = `${searchingText} ${remaining}s`;
                 }
                 remaining--;
                 if (remaining < 0) {
@@ -3869,6 +4252,15 @@
                 `;
                 // Add system message to game chat
                 const resultMsg = isPlayerWinner ? 'Congratulations! You won!' : 'Game over. Better luck next time!';
+                
+                // 🎉 Confetti and Toast on win!
+                if (isPlayerWinner) {
+                    startConfetti();
+                    showToast('success', t('victory') || 'Победа!', t('youWon') || 'Вы победили! +180 VP');
+                } else {
+                    showToast('info', t('gameOver') || 'Игра окончена', t('betterLuck') || 'В следующий раз повезет!');
+                }
+                
                 if (m.matchId) {
                     addChatMessage('system', 'System', resultMsg, 'game', m.matchId);
                 }
@@ -4421,87 +4813,212 @@
             document.getElementById('statsModal').classList.remove('show');
         }
 
-        async function showAuditModal() {
+        // Unified Stats Modal with Tabs
+        let currentStatsTab = 'overview';
+
+        async function showStatsModal() {
             sounds.click();
-            if (!token) { log('❌ Сначала войдите'); return; }
-            document.getElementById('auditModal').classList.add('show');
-            const body = document.getElementById('auditModalBody');
+            if (!token) {
+                log('❌ Сначала войдите');
+                return;
+            }
+            document.getElementById('statsModal').classList.add('show');
+            // Load default tab
+            await loadStatsTab('overview');
+        }
+
+        async function switchStatsTab(tabName) {
+            sounds.click();
+            currentStatsTab = tabName;
+            
+            // Update tab buttons
+            document.querySelectorAll('.stats-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            
+            // Load tab content
+            await loadStatsTab(tabName);
+        }
+
+        async function loadStatsTab(tabName) {
+            const body = document.getElementById('statsModalBody');
             body.innerHTML = '<div style="text-align:center;padding:20px;">Загрузка...</div>';
+            
             try {
-                const r = await fetch(`${API_URL}/auth/audit`, { headers: { "Authorization": "Bearer " + token } });
-                const data = await r.json();
-                if (data.count === 0) {
-                    body.innerHTML = '<div style="text-align:center;padding:20px;opacity:0.7;">Нет записей в истории</div>';
-                    return;
+                switch(tabName) {
+                    case 'overview':
+                        await loadOverviewTab(body);
+                        break;
+                    case 'matches':
+                        await loadMatchesTab(body);
+                        break;
+                    case 'finance':
+                        await loadFinanceTab(body);
+                        break;
                 }
-                let html = `<div style="max-height:400px;overflow-y:auto;">`;
-                data.logs.forEach(log => {
+            } catch (e) {
+                body.innerHTML = '<div style="color:#f87171;text-align:center;">❌ Ошибка загрузки</div>';
+            }
+        }
+
+        async function loadOverviewTab(body) {
+            const r = await fetch(`${API_URL}/auth/stats`, { headers: { "Authorization": "Bearer " + token } });
+            const s = await r.json();
+            const winColor = s.winRate >= 50 ? '#4ade80' : (s.winRate >= 30 ? '#ffd700' : '#f87171');
+            
+            // Calculate angles for pie chart
+            const total = s.wins + s.losses;
+            const winAngle = total > 0 ? (s.wins / total) * 360 : 0;
+            
+            body.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:20px;">
+                    <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                        <div style="font-size:2em;font-weight:bold;color:#ffd700;margin-bottom:5px;">${s.totalMatches}</div>
+                        <div style="font-size:0.9em;opacity:0.8;">Всего матчей</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                        <div style="font-size:2em;font-weight:bold;color:${winColor};margin-bottom:5px;">${s.winRate}%</div>
+                        <div style="font-size:0.9em;opacity:0.8;">Винрейт</div>
+                        <div style="width:100%;height:10px;background:rgba(255,255,255,0.1);border-radius:5px;overflow:hidden;margin-top:8px;">
+                            <div style="height:100%;background:linear-gradient(90deg,#4ade80,#ffd700);width:${s.winRate}%"></div>
+                        </div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                        <div style="font-size:2em;font-weight:bold;color:#4ade80;margin-bottom:5px;">${s.wins}</div>
+                        <div style="font-size:0.9em;opacity:0.8;">Побед</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
+                        <div style="font-size:2em;font-weight:bold;color:#f87171;margin-bottom:5px;">${s.losses}</div>
+                        <div style="font-size:0.9em;opacity:0.8;">Поражений</div>
+                    </div>
+                </div>
+                
+                <!-- Pie Chart -->
+                ${total > 0 ? `
+                <div style="text-align:center;margin:20px 0;">
+                    <div style="font-size:0.9em;opacity:0.8;margin-bottom:10px;">Победы / Поражения</div>
+                    <div style="width:150px;height:150px;margin:0 auto;border-radius:50%;background:conic-gradient(#4ade80 0deg ${winAngle}deg, #f87171 ${winAngle}deg 360deg);position:relative;">
+                        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card-bg);width:80px;height:80px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.8em;">
+                            ${s.wins}:${s.losses}
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,0.2);">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>🔥 Серия:</span><strong>${s.winStreak} (макс: ${s.maxWinStreak})</strong></div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💰 Выиграно:</span><strong style="color:#4ade80">${s.totalWonVp.toLocaleString()} VP</strong></div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💸 Проиграно:</span><strong style="color:#f87171">${s.totalLostVp.toLocaleString()} VP</strong></div>
+                    <div style="display:flex;justify-content:space-between;"><span>🎯 Макс. выигрыш:</span><strong style="color:#ffd700">${s.biggestWinVp.toLocaleString()} VP</strong></div>
+                </div>`;
+        }
+
+        async function loadMatchesTab(body) {
+            const r = await fetch(`${API_URL}/matchmaking/history`, { headers: { "Authorization": "Bearer " + token } });
+            const data = await r.json();
+            
+            if (data.error) {
+                body.innerHTML = `<div style="text-align:center;padding:20px;color:#f87171;">Ошибка: ${data.error}</div>`;
+                return;
+            }
+            
+            if (!data.matches || data.matches.length === 0) {
+                body.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.7;">🎮 История матчей пуста</div>';
+                return;
+            }
+            
+            let html = '<div style="max-height:400px;overflow-y:auto;">';
+            data.matches.forEach(m => {
+                const isWin = m.winnerId === userId;
+                const profit = isWin ? (m.payout - m.stake) : -m.stake;
+                const date = new Date(m.finishedAt).toLocaleString();
+                const profitColor = profit > 0 ? '#4ade80' : (profit < 0 ? '#f87171' : '#aaa');
+                const profitSign = profit > 0 ? '+' : '';
+                
+                html += `
+                    <div style="background:rgba(255,255,255,0.05);padding:12px;margin-bottom:8px;border-radius:8px;">
+                        <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                            <strong>${isWin ? '🏆 Победа' : '💀 Поражение'}</strong>
+                            <span style="color:${profitColor};font-weight:bold;">${profitSign}${profit} VP</span>
+                        </div>
+                        <div style="font-size:0.85em;opacity:0.7;">Ставка: ${m.stake} VP | Выплата: ${m.payout} VP</div>
+                        <div style="font-size:0.8em;opacity:0.5;margin-top:3px;">${date}</div>
+                    </div>`;
+            });
+            html += '</div>';
+            body.innerHTML = html;
+        }
+
+        async function loadFinanceTab(body) {
+            // Load both reconcile and audit data
+            const [reconcileRes, auditRes] = await Promise.all([
+                fetch(`${API_URL}/wallet/reconcile`, { headers: { "Authorization": "Bearer " + token } }),
+                fetch(`${API_URL}/auth/audit`, { headers: { "Authorization": "Bearer " + token } })
+            ]);
+            
+            const d = await reconcileRes.json();
+            const auditData = await auditRes.json();
+            
+            const statusColor = d.isBalanced ? '#4ade80' : '#f87171';
+            const statusIcon = d.isBalanced ? '✅' : '⚠️';
+            
+            let html = `
+                <!-- Reconcile Section -->
+                <div style="text-align:center;margin-bottom:20px;padding:15px;background:rgba(255,255,255,0.05);border-radius:12px;">
+                    <div style="font-size:2.5em;margin-bottom:10px;">${statusIcon}</div>
+                    <div style="font-size:1.1em;font-weight:bold;color:${statusColor};">
+                        ${d.isBalanced ? 'Баланс в порядке' : 'Обнаружено расхождение!'}
+                    </div>
+                    ${!d.isBalanced ? `<div style="color:#f87171;margin-top:5px;">Разница: ${d.discrepancy} VP</div>` : ''}
+                </div>
+                
+                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:20px;">
+                    <div style="background:rgba(255,255,255,0.1);padding:12px;border-radius:10px;text-align:center;">
+                        <div style="font-size:1.5em;font-weight:bold;color:#4ade80;">${d.actualBalance.toLocaleString()}</div>
+                        <div style="font-size:0.8em;opacity:0.7;">Фактический</div>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1);padding:12px;border-radius:10px;text-align:center;">
+                        <div style="font-size:1.5em;font-weight:bold;color:#ffd700;">${d.expectedBalance.toLocaleString()}</div>
+                        <div style="font-size:0.8em;opacity:0.7;">Ожидаемый</div>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom:15px;padding-bottom:15px;border-bottom:1px solid rgba(255,255,255,0.1);">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:0.9em;"><span>💰 Выиграно:</span><strong style="color:#4ade80">${d.stats.totalWon.toLocaleString()} VP</strong></div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:0.9em;"><span>💸 Проиграно:</span><strong style="color:#f87171">${d.stats.totalLost.toLocaleString()} VP</strong></div>
+                    <div style="display:flex;justify-content:space-between;font-size:0.9em;"><span>📊 Чистая прибыль:</span><strong style="color:${d.stats.netProfit >= 0 ? '#4ade80' : '#f87171'}">${d.stats.netProfit >= 0 ? '+' : ''}${d.stats.netProfit.toLocaleString()} VP</strong></div>
+                </div>
+                
+                <!-- Recent Audit Logs -->
+                <div style="font-size:0.9em;font-weight:bold;margin-bottom:10px;">📜 Последние транзакции:</div>
+            `;
+            
+            if (auditData.logs && auditData.logs.length > 0) {
+                html += '<div style="max-height:200px;overflow-y:auto;">';
+                auditData.logs.slice(0, 10).forEach(log => {
                     const date = new Date(log.createdAt).toLocaleString();
-                    const payload = JSON.stringify(log.payload || {});
                     html += `
-                        <div style="background:rgba(255,255,255,0.05);padding:12px;margin-bottom:8px;border-radius:8px;font-size:0.9em;">
-                            <div style="display:flex;justify-content:space-between;margin-bottom:5px;">
+                        <div style="background:rgba(255,255,255,0.03);padding:8px;margin-bottom:5px;border-radius:6px;font-size:0.85em;">
+                            <div style="display:flex;justify-content:space-between;">
                                 <strong style="color:#ffd700;">${log.eventType}</strong>
-                                <span style="opacity:0.6;font-size:0.8em;">${date}</span>
+                                <span style="opacity:0.5;font-size:0.75em;">${date}</span>
                             </div>
-                            ${log.matchId ? `<div style="opacity:0.7;font-size:0.85em;">Match: ${log.matchId}</div>` : ''}
-                            <div style="opacity:0.7;font-size:0.85em;word-break:break-all;">${payload}</div>
                         </div>`;
                 });
                 html += '</div>';
-                body.innerHTML = html;
-            } catch (e) {
-                body.innerHTML = '<div style="color:#f87171;text-align:center;">❌ Ошибка загрузки</div>';
+            } else {
+                html += '<div style="text-align:center;padding:10px;opacity:0.5;font-size:0.9em;">Нет записей</div>';
             }
+            
+            body.innerHTML = html;
         }
 
-        function hideAuditModal() {
-            document.getElementById('auditModal').classList.remove('show');
-        }
-
-        async function showReconcileModal() {
-            sounds.click();
-            if (!token) { log('❌ Сначала войдите'); return; }
-            document.getElementById('reconcileModal').classList.add('show');
-            const body = document.getElementById('reconcileModalBody');
-            body.innerHTML = '<div style="text-align:center;padding:20px;">Загрузка...</div>';
-            try {
-                const r = await fetch(`${API_URL}/wallet/reconcile`, { headers: { "Authorization": "Bearer " + token } });
-                const d = await r.json();
-                const statusColor = d.isBalanced ? '#4ade80' : '#f87171';
-                const statusIcon = d.isBalanced ? '✅' : '⚠️';
-                body.innerHTML = `
-                    <div style="text-align:center;margin-bottom:20px;">
-                        <div style="font-size:3em;margin-bottom:10px;">${statusIcon}</div>
-                        <div style="font-size:1.2em;font-weight:bold;color:${statusColor};">
-                            ${d.isBalanced ? 'Баланс в порядке' : 'Обнаружено расхождение!'}
-                        </div>
-                        ${!d.isBalanced ? `<div style="color:#f87171;margin-top:10px;">Разница: ${d.discrepancy} VP</div>` : ''}
-                    </div>
-                    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;margin-bottom:20px;">
-                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
-                            <div style="font-size:1.8em;font-weight:bold;color:#4ade80;">${d.actualBalance.toLocaleString()}</div>
-                            <div style="font-size:0.85em;opacity:0.8;">Фактический баланс</div>
-                        </div>
-                        <div style="background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;text-align:center;">
-                            <div style="font-size:1.8em;font-weight:bold;color:#ffd700;">${d.expectedBalance.toLocaleString()}</div>
-                            <div style="font-size:0.85em;opacity:0.8;">Ожидаемый баланс</div>
-                        </div>
-                    </div>
-                    <div style="margin-top:15px;padding-top:15px;border-top:1px solid rgba(255,255,255,0.2);">
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💰 Всего выиграно:</span><strong style="color:#4ade80">${d.stats.totalWon.toLocaleString()} VP</strong></div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>💸 Всего проиграно:</span><strong style="color:#f87171">${d.stats.totalLost.toLocaleString()} VP</strong></div>
-                        <div style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>📊 Чистая прибыль:</span><strong style="color:${d.stats.netProfit >= 0 ? '#4ade80' : '#f87171'}">${d.stats.netProfit >= 0 ? '+' : ''}${d.stats.netProfit.toLocaleString()} VP</strong></div>
-                        <div style="display:flex;justify-content:space-between;"><span>❄️ Заморожено:</span><strong>${d.frozenBalance.toLocaleString()} VP</strong></div>
-                    </div>`;
-            } catch (e) {
-                body.innerHTML = '<div style="color:#f87171;text-align:center;">❌ Ошибка загрузки</div>';
-            }
-        }
-
-        function hideReconcileModal() {
-            document.getElementById('reconcileModal').classList.remove('show');
-        }
+        // Legacy function redirects
+        async function showAuditModal() { await showStatsModal(); await switchStatsTab('finance'); }
+        function hideAuditModal() { hideStatsModal(); }
+        async function showReconcileModal() { await showStatsModal(); await switchStatsTab('finance'); }
+        function hideReconcileModal() { hideStatsModal(); }
         
         function hidePublicProfileModal() {
             document.getElementById('publicProfileModal').classList.remove('show');
@@ -4646,40 +5163,21 @@
             </div>
         </div>
     </div>
-    <!-- Stats Modal -->
+    <!-- Unified Stats Modal with Tabs -->
     <div class="modal-overlay" id="statsModal" onclick="closeModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal modal-large" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <h3>📊 Статистика</h3>
                 <button class="modal-close" onclick="hideStatsModal()">×</button>
             </div>
+            <!-- Tabs -->
+            <div class="stats-tabs">
+                <button class="stats-tab active" onclick="switchStatsTab('overview')" id="tab-overview">📈 Обзор</button>
+                <button class="stats-tab" onclick="switchStatsTab('matches')" id="tab-matches">🎮 Матчи</button>
+                <button class="stats-tab" onclick="switchStatsTab('finance')" id="tab-finance">💰 Финансы</button>
+            </div>
             <div class="modal-body" id="statsModalBody">
-                <div class="stats-loading">Загрузка...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Audit Modal -->
-    <div class="modal-overlay" id="auditModal" onclick="closeModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3>📜 История транзакций</h3>
-                <button class="modal-close" onclick="hideAuditModal()">×</button>
-            </div>
-            <div class="modal-body" id="auditModalBody">
-                <div class="stats-loading">Загрузка...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Reconcile Modal -->
-    <div class="modal-overlay" id="reconcileModal" onclick="closeModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3>⚖️ Сверка баланса</h3>
-                <button class="modal-close" onclick="hideReconcileModal()">×</button>
-            </div>
-            <div class="modal-body" id="reconcileModalBody">
+                <!-- Content loaded dynamically -->
                 <div class="stats-loading">Загрузка...</div>
             </div>
         </div>
@@ -4701,18 +5199,10 @@
             </div>
         </div>
     </div>
-
-    <!-- History Modal -->
-    <div class="modal-overlay" id="historyModal" onclick="closeModal(event)">
-        <div class="modal" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h3>🎮 История матчей</h3>
-                <button class="modal-close" onclick="document.getElementById('historyModal').classList.remove('show')">×</button>
-            </div>
-            <div class="modal-body" id="historyList">
-                <div class="stats-loading">Загрузка...</div>
-            </div>
-        </div>
-    </div>
+    <!-- Confetti Canvas -->
+    <canvas id="confettiCanvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;"></canvas>
+    
+    <!-- Toast Container -->
+    <div id="toastContainer" style="position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; pointer-events: none;"></div>
 </body>
 </html>

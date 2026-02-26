@@ -4,7 +4,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 
 // Декодирует JWT и возвращает userId из 'sub' claim
 // Поддерживает как JWT токены, так и plain UUID (для обратной совместимости)
-function getTokenUserId(authHeader?: string): string {
+function getUserIdFromToken(authHeader?: string): string {
   if (!authHeader) return '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
   const trimmed = token.trim();
@@ -290,7 +290,7 @@ export class AuthController {
   // Получение информации о пользователе
   @Get('me')
   me(@Headers('authorization') authHeader?: string) {
-    const token = getTokenUserId(authHeader);
+    const token = getUserIdFromToken(authHeader);
     return this.auth.me(token);
   }
 
@@ -306,7 +306,7 @@ export class AuthController {
     @Headers('authorization') authHeader: string,
     @Body() body: UpdateProfileDto,
   ) {
-    const token = getTokenUserId(authHeader);
+    const token = getUserIdFromToken(authHeader);
     if (!token) {
       throw new BadRequestException('Необходима авторизация');
     }
@@ -329,7 +329,7 @@ export class AuthController {
     @Headers('authorization') authHeader: string,
     @Body() body: { email: string; password: string },
   ) {
-    const token = getTokenUserId(authHeader);
+    const token = getUserIdFromToken(authHeader);
     if (!token) {
       throw new BadRequestException('Необходима авторизация');
     }
@@ -345,7 +345,7 @@ export class AuthController {
   // 📊 Получение статистики игрока
   @Get('stats')
   async getStats(@Headers('authorization') authHeader: string) {
-    const token = getTokenUserId(authHeader);
+    const token = getUserIdFromToken(authHeader);
     if (!token) {
       throw new BadRequestException('Необходима авторизация');
     }
@@ -355,7 +355,7 @@ export class AuthController {
   // 🆕 Получение audit логов пользователя (для отладки)
   @Get('audit')
   async getAudit(@Headers('authorization') authHeader: string) {
-    const token = getTokenUserId(authHeader);
+    const token = getUserIdFromToken(authHeader);
     if (!token) {
       throw new BadRequestException('Необходима авторизация');
     }

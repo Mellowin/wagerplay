@@ -1,19 +1,9 @@
 import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-
-import { randomBytes, createHash } from 'crypto';
-
-// Временная заглушка для bcrypt
-const bcrypt = {
-  hash: async (password: string, salt: number) => {
-    return createHash('sha256').update(password + 'salt').digest('hex');
-  },
-  compare: async (password: string, hash: string) => {
-    const hashed = createHash('sha256').update(password + 'salt').digest('hex');
-    return hashed === hash;
-  }
-};
+import { JwtService } from '@nestjs/jwt';
+import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { User } from '../users/user.entity';
 import { UserStats } from '../users/user-stats.entity';
 import { Wallet } from '../wallets/wallet.entity';
@@ -28,6 +18,7 @@ export class AuthService {
     @InjectRepository(Wallet) private walletsRepo: Repository<Wallet>,
     private emailService: EmailService,
     private audit: AuditService,
+    private jwtService: JwtService,
   ) {}
 
   // Генерация случайного токена
@@ -141,8 +132,8 @@ export class AuthService {
       throw new UnauthorizedException('Email не подтвержден. Проверьте почту.');
     }
 
-    // Генерируем JWT token (простой вариант - UUID)
-    const token = user.id;
+    // Генерируем JWT token с подписью
+    const token = this.jwtService.sign({ sub: user.id, email: user.email });
 
     return {
       userId: user.id,
@@ -420,6 +411,7 @@ export class AuthService {
     });
     await this.walletsRepo.save(wallet);
 
+    // Гостевой токен - plain UUID (гости временные, JWT не нужен)
     return { 
       userId: user.id, 
       token: user.id, 

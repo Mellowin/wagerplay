@@ -22,4 +22,16 @@ export class AppController {
       res.status(404).send('File not found');
     }
   }
+
+  // 🏥 Health check endpoint (для Docker, Kubernetes, load balancers)
+  @Get('health')
+  getHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      version: process.env.npm_package_version || 'unknown',
+      environment: process.env.NODE_ENV || 'development',
+    };
+  }
 }

@@ -21,9 +21,24 @@ export class AuditService {
             roundNo: params.roundNo ?? null,
             payload: params.payload ?? {},
         });
-        // ⚡ Fire-and-forget: не ждём сохранения в БД
-        this.repo.save(e).catch(err => console.error('Audit log error:', err));
+        
+        // 🔄 Retry с exponential backoff (3 попытки)
+        this.saveWithRetry(e, 3).catch(err => console.error('Audit log error (final):', err));
         return e;
+    }
+
+    private async saveWithRetry(event: AuditEvent, maxRetries: number, attempt = 1): Promise<void> {
+        try {
+            await this.repo.save(event);
+        } catch (err) {
+            if (attempt >= maxRetries) {
+                throw err;
+            }
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // max 10s
+            console.warn(`Audit save failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
+            return this.saveWithRetry(event, maxRetries, attempt + 1);
+        }
     }
 
     async getByUser(userId: string, limit = 100) {

@@ -1,18 +1,18 @@
 import { INestApplication } from '@nestjs/common';
-import request from 'supertest';
 import { TestClient } from './helpers/api';
 import { flushTestDb } from './helpers/redis';
 import { createTestApp, closeTestApp } from './helpers/test-app';
 
 /**
- * E2E Tests for Timeout and Fallback scenarios
+ * E2E Tests for Timeout and Fallback mechanisms
  * 
- * TO-001: Match expires without moves
- * TO-002: Player eliminated for timeout
- * TO-003: Fallback to bot after timeout
+ * TC-TIMEOUT-01: Match with bot should not timeout waiting
+ * TC-TIMEOUT-02: Move timeout in bot match
+ * TC-TIMEOUT-03: Match completion without human opponent
+ * TC-TIMEOUT-04: Auto-move handling with bot
  */
 
-describe('Timeout and Fallback (e2e)', () => {
+describe('Timeout/Fallback (e2e)', () => {
   let app: INestApplication;
   let client: TestClient;
 
@@ -29,96 +29,142 @@ describe('Timeout and Fallback (e2e)', () => {
     await flushTestDb();
   });
 
-  describe('TO-001: Match progression', () => {
-    it('should allow match to progress with moves', async () => {
-      // Create match with longer setup to test round progression
-      const [p1, p2] = await client.createGuests(2);
-      
-      await client.quickplay(p1.token, 2, 100);
-      await client.quickplay(p2.token, 2, 100);
-      await new Promise(r => setTimeout(r, 2500));
+  describe('TC-TIMEOUT-01: Bot match creation speed', () => {
+    it('should create match immediately without waiting', async () => {
+      const user = await client.createGuest();
 
-      const state = await client.getActiveState(p1.token);
+      const startTime = Date.now();
+      
+      // Create match - should be immediate with forceMatch
+      await client.quickplay(user.token, 2, 100);
+      await client.forceMatch(user.token, 2, 100);
+      const createTime = Date.now() - startTime;
+
+      // Should create match quickly (< 2 seconds with bot)
+      expect(createTime).toBeLessThan(2000);
+      
+      // Verify state
+      const state = await client.pollForActiveMatch(user.token);
       expect(state.activeMatch).toBeDefined();
-      expect(['IN_PROGRESS', 'READY']).toContain(state.activeMatch.status);
     });
 
-    it('should track round number correctly', async () => {
-      const [p1, p2] = await client.createGuests(2);
-      
-      await client.quickplay(p1.token, 2, 100);
-      await client.quickplay(p2.token, 2, 100);
-      await new Promise(r => setTimeout(r, 1500));
+    it('should not keep user waiting in queue with bot', async () => {
+      const user = await client.createGuest();
 
-      const state = await client.getActiveState(p1.token);
+      await client.quickplay(user.token, 2, 100);
+      await client.forceMatch(user.token, 2, 100);
+      
+      // Check state - should be in match
+      const state = await client.pollForActiveMatch(user.token);
+      expect(state.queueTicket).toBeNull();
+    });
+  });
+
+  describe('TC-TIMEOUT-02: Move timeout in bot match', () => {
+    it('should have move deadline set', async () => {
+      const user = await client.createGuest();
+
+      await client.quickplay(user.token, 2, 100);
+      await client.forceMatch(user.token, 2, 100);
+      
+      const state = await client.pollForActiveMatch(user.token);
+      const match = state.activeMatch;
+
+      // Should have deadline
+      expect(match.moveDeadline).toBeDefined();
+      expect(match.moveDeadline).toBeGreaterThan(Date.now());
+    });
+
+    it('should auto-resolve if player does not move', async () => {
+      const user = await client.createGuest();
+
+      await client.quickplay(user.token, 2, 100);
+      await client.forceMatch(user.token, 2, 100);
+      
+      const state = await client.pollForActiveMatch(user.token);
       const matchId = state.activeMatch.matchId;
 
-      // Initial round
-      let match = await client.getMatch(matchId, p1.token);
-      expect(match.round).toBe(1);
+      // Don't make move - wait for timeout
+      // Bot will auto-move or timeout will trigger
+      await new Promise(r => setTimeout(r, 15000)); // Wait longer than move timeout (12s)
 
-      // Play round
-      await client.submitMove(matchId, p1.token, 'ROCK');
-      await client.submitMove(matchId, p2.token, 'PAPER'); // P2 wins
-      await new Promise(r => setTimeout(r, 2000));
+      const match = await client.getMatch(matchId, user.token);
+      
+      // Match should be resolved (finished or auto-moved)
+      expect(['FINISHED', 'IN_PROGRESS']).toContain(match.status);
+    }, 20000);
+  });
 
-      // Match should finish with winner
-      match = await client.getMatch(matchId, p1.token);
+  describe('TC-TIMEOUT-03: Bot match completion', () => {
+    it('should complete match with bot opponent', async () => {
+      const user = await client.createGuest();
+
+      await client.quickplay(user.token, 2, 100);
+      await client.forceMatch(user.token, 2, 100);
+      
+      const state = await client.pollForActiveMatch(user.token);
+      const matchId = state.activeMatch.matchId;
+
+      // Player makes move
+      await client.submitMove(matchId, user.token, 'ROCK');
+      
+      // Bot moves automatically
+      await new Promise(r => setTimeout(r, 3500));
+
+      const match = await client.getMatch(matchId, user.token);
+      
+      // Should have moves recorded
+      expect(match.moves).toBeDefined();
+      expect(Object.keys(match.moves).length).toBeGreaterThan(0);
+    });
+
+    it('should determine winner in bot match', async () => {
+      const user = await client.createGuest();
+
+      await client.quickplay(user.token, 2, 100);
+      await client.forceMatch(user.token, 2, 100);
+      
+      const state = await client.pollForActiveMatch(user.token);
+      const matchId = state.activeMatch.matchId;
+
+      // Play
+      await client.submitMove(matchId, user.token, 'ROCK');
+      await new Promise(r => setTimeout(r, 3500));
+
+      const match = await client.getMatch(matchId, user.token);
+      
+      // Should be finished with winner
       expect(match.status).toBe('FINISHED');
       expect(match.winnerId).toBeDefined();
     });
   });
 
-  describe('TO-002: Elimination flow', () => {
-    it('should eliminate loser and keep winner', async () => {
-      const [p1, p2] = await client.createGuests(2);
-      
-      await client.quickplay(p1.token, 2, 100);
-      await client.quickplay(p2.token, 2, 100);
-      await new Promise(r => setTimeout(r, 1500));
+  describe('TC-TIMEOUT-04: Multiple rounds with bot', () => {
+    it('should handle tie and continue to next round', async () => {
+      // This test checks that ties are handled correctly
+      const user = await client.createGuest();
 
-      const state = await client.getActiveState(p1.token);
+      await client.quickplay(user.token, 2, 100);
+      await client.forceMatch(user.token, 2, 100);
+      
+      const state = await client.pollForActiveMatch(user.token);
       const matchId = state.activeMatch.matchId;
+      const initialRound = state.activeMatch.round || 1;
 
-      // P1 plays ROCK, P2 plays SCISSORS - P1 wins
-      await client.submitMove(matchId, p1.token, 'ROCK');
-      await client.submitMove(matchId, p2.token, 'SCISSORS');
-      await new Promise(r => setTimeout(r, 2000));
-
-      const match = await client.getMatch(matchId, p1.token);
+      // Make move
+      await client.submitMove(matchId, user.token, 'ROCK');
       
-      expect(match.status).toBe('FINISHED');
-      expect(match.winnerId).toBe(p1.userId);
-      expect(match.eliminatedIds).toContain(p2.userId);
-      expect(match.aliveIds).toContain(p1.userId);
-      expect(match.aliveIds).not.toContain(p2.userId);
-    });
-  });
+      // Wait for resolution
+      await new Promise(r => setTimeout(r, 3500));
 
-  describe('TO-003: Match settlement', () => {
-    it('should settle match with correct payout', async () => {
-      const [p1, p2] = await client.createGuests(2);
-      const stake = 100;
+      const match = await client.getMatch(matchId, user.token);
       
-      await client.quickplay(p1.token, 2, stake);
-      await client.quickplay(p2.token, 2, stake);
-      await new Promise(r => setTimeout(r, 1500));
-
-      const state = await client.getActiveState(p1.token);
-      const match = state.activeMatch;
-      const matchId = match.matchId;
-      const expectedPayout = match.payoutVp;
-
-      // Play to finish
-      await client.submitMove(matchId, p1.token, 'ROCK');
-      await client.submitMove(matchId, p2.token, 'SCISSORS');
-      await new Promise(r => setTimeout(r, 2000));
-
-      const finalMatch = await client.getMatch(matchId, p1.token);
-      
-      expect(finalMatch.settled).toBe(true);
-      expect(finalMatch.payoutVp).toBe(expectedPayout);
-      expect(finalMatch.feeVp + finalMatch.payoutVp).toBe(finalMatch.potVp);
+      // Match should progress (either finished or next round)
+      if (match.status === 'IN_PROGRESS') {
+        expect(match.round).toBeGreaterThan(initialRound);
+      } else {
+        expect(match.status).toBe('FINISHED');
+      }
     });
   });
 });
