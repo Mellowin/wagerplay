@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Patch, Body, Query, Headers, BadRequestException, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
@@ -36,6 +37,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Register new user', description: 'Create account with email and password' })
   @ApiResponse({ status: 201, description: 'User registered successfully' })
   @ApiResponse({ status: 400, description: 'Email and password are required' })
+  @Throttle({ default: { limit: 5, ttl: 300000 } }) // 5 попыток за 5 минут
   @Post('register')
   async register(@Body() body: { email: string; password: string; username?: string }) {
     if (!body.email || !body.password) {
@@ -59,6 +61,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Login user', description: 'Authenticate with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful, returns JWT token' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @Throttle({ default: { limit: 5, ttl: 300000 } }) // 5 попыток за 5 минут
   @Post('login')
   async login(@Body() body: { email: string; password: string }) {
     if (!body.email || !body.password) {
@@ -68,6 +71,7 @@ export class AuthController {
   }
 
   // Запрос на восстановление пароля
+  @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3 попытки за час
   @Post('forgot-password')
   async forgotPassword(@Body() body: { email: string }) {
     if (!body.email) {
@@ -302,6 +306,7 @@ export class AuthController {
   }
 
   // Guest login (для быстрого входа без регистрации)
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 гостевых входов за минуту
   @Post('guest')
   guest() {
     return this.auth.guestLogin();

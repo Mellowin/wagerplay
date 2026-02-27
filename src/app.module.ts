@@ -15,6 +15,8 @@ import { WalletsModule } from './wallets/wallets.module';
 import { AuditModule } from './audit/audit.module';
 import { HouseModule } from './house/house.module';
 import { AvatarsModule } from './avatars/avatars.module';
+import { ThrottleModule } from './throttle/throttle.module';
+import { LeaderboardModule } from './leaderboard/leaderboard.module';
 
 @Module({
     imports: [
@@ -41,6 +43,8 @@ import { AvatarsModule } from './avatars/avatars.module';
         MatchmakingModule,
         HouseModule,
         AvatarsModule,
+        ThrottleModule,
+        LeaderboardModule,
         // ServeStaticModule.forRoot({
         //     rootPath: join(process.cwd()),
         // }),

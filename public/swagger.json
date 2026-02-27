@@ -29,9 +29,9 @@
         ]
       }
     },
-    "/api-docs": {
+    "/health": {
       "get": {
-        "operationId": "AppController_getApiDocs",
+        "operationId": "AppController_getHealth",
         "parameters": [],
         "responses": {
           "200": {
@@ -45,6 +45,7 @@
     },
     "/auth/register": {
       "post": {
+        "description": "Create account with email and password",
         "operationId": "AuthController_register",
         "parameters": [],
         "responses": {
@@ -52,9 +53,14 @@
             "description": "User registered successfully"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Email and password are required"
           }
         },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "summary": "Register new user",
         "tags": [
           "Authentication"
@@ -79,7 +85,11 @@
             "description": ""
           }
         },
-        "summary": "Verify email with token",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Authentication"
         ]
@@ -87,17 +97,23 @@
     },
     "/auth/login": {
       "post": {
+        "description": "Authenticate with email and password",
         "operationId": "AuthController_login",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Login successful"
+            "description": "Login successful, returns JWT token"
           },
           "401": {
             "description": "Invalid credentials"
           }
         },
-        "summary": "User login",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Login user",
         "tags": [
           "Authentication"
         ]
@@ -112,7 +128,11 @@
             "description": ""
           }
         },
-        "summary": "Request password reset",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Authentication"
         ]
@@ -136,7 +156,11 @@
             "description": ""
           }
         },
-        "summary": "Show password reset form",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Authentication"
         ]
@@ -149,7 +173,11 @@
             "description": ""
           }
         },
-        "summary": "Reset password with token",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Authentication"
         ]
@@ -170,18 +198,14 @@
         ],
         "responses": {
           "200": {
-            "description": "User info"
-          },
-          "401": {
-            "description": "Unauthorized"
+            "description": ""
           }
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Get current user info",
         "tags": [
           "Authentication"
         ]
@@ -196,7 +220,11 @@
             "description": ""
           }
         },
-        "summary": "Create guest account",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Authentication"
         ]
@@ -215,6 +243,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": ""
@@ -222,10 +260,9 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Update user profile",
         "tags": [
           "Authentication"
         ]
@@ -249,7 +286,11 @@
             "description": ""
           }
         },
-        "summary": "Get public user profile",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Authentication"
         ]
@@ -275,10 +316,9 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Link email to guest account",
         "tags": [
           "Authentication"
         ]
@@ -304,10 +344,9 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Get user statistics",
         "tags": [
           "Authentication"
         ]
@@ -333,10 +372,9 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Get user audit logs",
         "tags": [
           "Authentication"
         ]
@@ -351,7 +389,11 @@
             "description": ""
           }
         },
-        "summary": "Resend verification email",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Authentication"
         ]
@@ -359,6 +401,7 @@
     },
     "/wallet": {
       "get": {
+        "description": "Returns current balance and frozen amount",
         "operationId": "WalletsController_me",
         "parameters": [
           {
@@ -373,14 +416,11 @@
         "responses": {
           "200": {
             "description": "Balance retrieved"
-          },
-          "401": {
-            "description": "Unauthorized"
           }
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
         "summary": "Get wallet balance",
@@ -389,9 +429,40 @@
         ]
       }
     },
+    "/wallet/reset-frozen": {
+      "post": {
+        "description": "Return frozen stake to available balance",
+        "operationId": "WalletsController_resetFrozen",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Frozen balance returned"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Reset frozen balance",
+        "tags": [
+          "Wallets"
+        ]
+      }
+    },
     "/wallet/admin/reset-frozen": {
       "post": {
-        "operationId": "WalletsController_resetFrozen",
+        "description": "Admin can reset frozen balance for any user",
+        "operationId": "WalletsController_adminResetFrozen",
         "parameters": [
           {
             "name": "authorization",
@@ -409,10 +480,10 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Reset frozen balance (admin only)",
+        "summary": "Admin: reset frozen balance",
         "tags": [
           "Wallets"
         ]
@@ -420,6 +491,7 @@
     },
     "/wallet/reconcile": {
       "get": {
+        "description": "Compare actual balance with expected based on game history",
         "operationId": "WalletsController_reconcile",
         "parameters": [
           {
@@ -434,17 +506,14 @@
         "responses": {
           "200": {
             "description": "Reconciliation data"
-          },
-          "401": {
-            "description": "Unauthorized"
           }
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Verify balance integrity",
+        "summary": "Reconcile balance",
         "tags": [
           "Wallets"
         ]
@@ -452,6 +521,7 @@
     },
     "/matchmaking/quickplay": {
       "post": {
+        "description": "Join queue for Rock Paper Scissors match",
         "operationId": "MatchmakingController_quickplay",
         "parameters": [
           {
@@ -465,15 +535,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Joined queue or matched"
-          },
-          "401": {
-            "description": "Unauthorized"
+            "description": "Joined queue or match created"
           }
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
         "summary": "Join matchmaking queue",
@@ -484,6 +551,7 @@
     },
     "/matchmaking/match/{id}/audit": {
       "get": {
+        "description": "Returns financial audit for match",
         "operationId": "MatchmakingController_audit",
         "parameters": [
           {
@@ -500,7 +568,12 @@
             "description": ""
           }
         },
-        "summary": "Get match audit logs",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Get match audit log",
         "tags": [
           "Matchmaking"
         ]
@@ -529,21 +602,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Ticket found"
-          },
-          "403": {
-            "description": "Access denied"
-          },
-          "404": {
-            "description": "Ticket not found"
+            "description": ""
           }
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Get ticket status",
         "tags": [
           "Matchmaking"
         ]
@@ -567,7 +633,11 @@
             "description": ""
           }
         },
-        "summary": "Fallback to bot if timed out",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Matchmaking"
         ]
@@ -575,6 +645,7 @@
     },
     "/matchmaking/match/{id}": {
       "get": {
+        "description": "Returns match state by ID",
         "operationId": "MatchmakingController_match",
         "parameters": [
           {
@@ -588,12 +659,14 @@
         ],
         "responses": {
           "200": {
-            "description": "Match found"
-          },
-          "404": {
-            "description": "Match not found"
+            "description": ""
           }
         },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "summary": "Get match details",
         "tags": [
           "Matchmaking"
@@ -602,6 +675,7 @@
     },
     "/matchmaking/match/{id}/move": {
       "post": {
+        "description": "Submit ROCK, PAPER or SCISSORS move",
         "operationId": "MatchmakingController_move",
         "parameters": [
           {
@@ -621,6 +695,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitMoveDto"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""
@@ -628,10 +712,10 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Submit move for match",
+        "summary": "Submit move",
         "tags": [
           "Matchmaking"
         ]
@@ -646,7 +730,11 @@
             "description": ""
           }
         },
-        "summary": "Clean up orphaned matches",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Matchmaking"
         ]
@@ -672,10 +760,9 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Create test orphaned match (dev only)",
         "tags": [
           "Matchmaking"
         ]
@@ -683,6 +770,7 @@
     },
     "/matchmaking/active": {
       "get": {
+        "description": "Check if user is in queue or active match",
         "operationId": "MatchmakingController_getActiveState",
         "parameters": [
           {
@@ -701,68 +789,10 @@
         },
         "security": [
           {
-            "bearer": []
+            "JWT-auth": []
           }
         ],
-        "summary": "Get user active state (queue/match)",
-        "tags": [
-          "Matchmaking"
-        ]
-      }
-    },
-    "/matchmaking/history/my": {
-      "get": {
-        "operationId": "MatchmakingController_getMyHistory",
-        "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get my match history",
-        "tags": [
-          "Matchmaking"
-        ]
-      }
-    },
-    "/matchmaking/history": {
-      "get": {
-        "operationId": "MatchmakingController_getGlobalHistory",
-        "parameters": [
-          {
-            "name": "authorization",
-            "required": true,
-            "in": "header",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "Get global match history",
+        "summary": "Get active state",
         "tags": [
           "Matchmaking"
         ]
@@ -777,7 +807,69 @@
             "description": ""
           }
         },
-        "summary": "Get online players count",
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "tags": [
+          "Matchmaking"
+        ]
+      }
+    },
+    "/matchmaking/history": {
+      "get": {
+        "description": "Returns user's match history",
+        "operationId": "MatchmakingController_getMatchHistory",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Get match history",
+        "tags": [
+          "Matchmaking"
+        ]
+      }
+    },
+    "/matchmaking/test/force-match": {
+      "post": {
+        "operationId": "MatchmakingController_forceMatch",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
         "tags": [
           "Matchmaking"
         ]
@@ -819,6 +911,206 @@
           "Avatars"
         ]
       }
+    },
+    "/leaderboard": {
+      "get": {
+        "description": "Returns top players sorted by specified category",
+        "operationId": "LeaderboardController_getLeaderboard",
+        "parameters": [
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Sort category",
+            "schema": {
+              "enum": [
+                "wins",
+                "winRate",
+                "profit",
+                "streak",
+                "biggestWin"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of results (default: 10, max: 100)",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Offset for pagination (default: 0)",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leaderboard entries"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get leaderboard by category",
+        "tags": [
+          "Leaderboard"
+        ]
+      }
+    },
+    "/leaderboard/global": {
+      "get": {
+        "description": "Returns top players from all categories for main page",
+        "operationId": "LeaderboardController_getGlobalLeaderboard",
+        "parameters": [
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of results per category (default: 5)",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leaderboard by all categories"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get global leaderboard",
+        "tags": [
+          "Leaderboard"
+        ]
+      }
+    },
+    "/leaderboard/me": {
+      "get": {
+        "description": "Returns authenticated user's rank in leaderboard",
+        "operationId": "LeaderboardController_getMyPosition",
+        "parameters": [
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Category",
+            "schema": {
+              "enum": [
+                "wins",
+                "winRate",
+                "profit",
+                "streak",
+                "biggestWin"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User position"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get current user position",
+        "tags": [
+          "Leaderboard"
+        ]
+      }
+    },
+    "/leaderboard/user/{userId}": {
+      "get": {
+        "description": "Returns specific user's position",
+        "operationId": "LeaderboardController_getUserPosition",
+        "parameters": [
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Category",
+            "schema": {
+              "enum": [
+                "wins",
+                "winRate",
+                "profit",
+                "streak",
+                "biggestWin"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User position"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get user position",
+        "tags": [
+          "Leaderboard"
+        ]
+      }
+    },
+    "/leaderboard/categories": {
+      "get": {
+        "operationId": "LeaderboardController_getCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of categories"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get available leaderboard categories",
+        "tags": [
+          "Leaderboard"
+        ]
+      }
     }
   },
   "info": {
@@ -857,6 +1149,15 @@
         "in": "header"
       }
     },
-    "schemas": {}
+    "schemas": {
+      "UpdateProfileDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "SubmitMoveDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
   }
 }

@@ -912,6 +912,97 @@
         .winrate-fill {
             height: 100%;
             background: linear-gradient(90deg, #4ade80, #ffd700);
+        }
+
+        /* Leaderboard Styles */
+        .leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+
+        .leaderboard-table th {
+            background: rgba(255,255,255,0.1);
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid var(--card-border);
+        }
+
+        .leaderboard-table td {
+            padding: 12px 8px;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .leaderboard-table tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .leaderboard-rank {
+            font-weight: bold;
+            font-size: 1.2em;
+            width: 50px;
+            text-align: center;
+        }
+
+        .leaderboard-rank.top-1 { color: #ffd700; }
+        .leaderboard-rank.top-2 { color: #c0c0c0; }
+        .leaderboard-rank.top-3 { color: #cd7f32; }
+
+        .leaderboard-player {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .leaderboard-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1em;
+        }
+
+        .leaderboard-value {
+            font-weight: bold;
+            color: var(--gold-color);
+            text-align: right;
+        }
+
+        .leaderboard-stats {
+            font-size: 0.85em;
+            opacity: 0.8;
+            text-align: right;
+        }
+
+        .leaderboard-loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.1em;
+        }
+
+        .leaderboard-empty {
+            text-align: center;
+            padding: 40px;
+            opacity: 0.7;
+        }
+
+        .leaderboard-pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            padding: 15px 20px;
+            border-top: 1px solid var(--card-border);
+        }
+
+        .leaderboard-my-position {
+            background: rgba(102, 126, 234, 0.2);
+            border-left: 3px solid var(--btn-primary-gradient-start);
+        }
             transition: width 0.5s ease;
         }
 
@@ -1928,6 +2019,10 @@
                 <span>📊</span>
                 <span id="burgerStatsText">Статистика</span>
             </div>
+            <div class="dropdown-item" onclick="showLeaderboard(); closeMenu();">
+                <span>🏆</span>
+                <span id="burgerLeaderboardText">Топ</span>
+            </div>
             <div class="dropdown-item" onclick="showLogsInChat(); closeMenu();">
                 <span>📋</span>
                 <span id="burgerLogsText">Логи</span>
@@ -2325,6 +2420,7 @@
                 logout: 'Выйти',
                 guest: 'Гость',
                 statsBtn: '📊 Статистика',
+                leaderboardBtn: '🏆 Топ',
                 goToProfileBtn: '👤 В ПРОФИЛЬ',
                 logsBtn: '📋 Логи',
                 auditBtn: '📜 Проверка',
@@ -2405,6 +2501,7 @@
                 logout: 'Logout',
                 guest: 'Guest',
                 statsBtn: '📊 Stats',
+                leaderboardBtn: '🏆 Top',
                 goToProfileBtn: '👤 TO PROFILE',
                 logsBtn: '📋 Logs',
                 auditBtn: '📜 Audit',
@@ -2485,6 +2582,7 @@
                 logout: '退出',
                 guest: '游客',
                 statsBtn: '📊 统计',
+                leaderboardBtn: '🏆 榜单',
                 goToProfileBtn: '👤 个人资料',
                 logsBtn: '📋 日志',
                 auditBtn: '📜 审计',
@@ -2623,6 +2721,8 @@
             const burgerLogsText = document.getElementById('burgerLogsText');
             if (burgerBalanceText) burgerBalanceText.textContent = t('balanceBtn').replace('💳 ', '');
             if (burgerStatsText) burgerStatsText.textContent = t('statsBtn').replace('📊 ', '');
+            const burgerLeaderboardText = document.getElementById('burgerLeaderboardText');
+            if (burgerLeaderboardText) burgerLeaderboardText.textContent = t('leaderboardBtn').replace('🏆 ', '');
             if (burgerLogsText) burgerLogsText.textContent = t('logsBtn').replace('📋 ', '');
             
             // Refresh match display if exists
@@ -5222,6 +5322,175 @@
             document.getElementById('statsModal').classList.remove('show');
         }
 
+        // Leaderboard
+        let currentLeaderboardCategory = 'wins';
+        let currentLeaderboardOffset = 0;
+        const LEADERBOARD_LIMIT = 10;
+
+        async function showLeaderboard() {
+            sounds.click();
+            if (!token) {
+                log('❌ Сначала войдите');
+                return;
+            }
+            document.getElementById('leaderboardModal').classList.add('show');
+            await loadLeaderboard();
+            await loadMyLeaderboardPosition();
+        }
+
+        function hideLeaderboardModal() {
+            document.getElementById('leaderboardModal').classList.remove('show');
+        }
+
+        async function switchLeaderboardCategory(category) {
+            sounds.click();
+            currentLeaderboardCategory = category;
+            currentLeaderboardOffset = 0;
+            
+            // Update tab buttons
+            document.querySelectorAll('#leaderboardTabs .stats-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.getElementById(`lb-tab-${category}`).classList.add('active');
+            
+            await loadLeaderboard();
+            await loadMyLeaderboardPosition();
+        }
+
+        async function loadLeaderboard() {
+            const body = document.getElementById('leaderboardBody');
+            body.innerHTML = '<div class="leaderboard-loading">Загрузка топа...</div>';
+            document.getElementById('leaderboardPagination').style.display = 'none';
+            
+            try {
+                const res = await fetch(`${API_URL}/leaderboard?category=${currentLeaderboardCategory}&limit=${LEADERBOARD_LIMIT}&offset=${currentLeaderboardOffset}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!res.ok) throw new Error('Failed to load');
+                
+                const data = await res.json();
+                renderLeaderboard(data.entries, data.total);
+            } catch (e) {
+                body.innerHTML = '<div class="leaderboard-empty">❌ Ошибка загрузки топа</div>';
+            }
+        }
+
+        function renderLeaderboard(entries, total) {
+            const body = document.getElementById('leaderboardBody');
+            
+            if (!entries || entries.length === 0) {
+                body.innerHTML = '<div class="leaderboard-empty">📜 Нет данных</div>';
+                return;
+            }
+            
+            const categoryLabels = {
+                wins: 'Побед',
+                winRate: 'Винрейт',
+                profit: 'VP выиграно',
+                streak: 'Стрик',
+                biggestWin: 'Макс. стрик'
+            };
+            
+            let html = '<table class="leaderboard-table"><thead><tr>';
+            html += '<th>#</th>';
+            html += '<th>Игрок</th>';
+            html += `<th>${categoryLabels[currentLeaderboardCategory]}</th>`;
+            html += '<th>Статистика</th>';
+            html += '</tr></thead><tbody>';
+            
+            entries.forEach(entry => {
+                const rankClass = entry.rank <= 3 ? `top-${entry.rank}` : '';
+                const avatar = entry.avatarUrl ? 
+                    `<img src="${entry.avatarUrl}" style="width:32px;height:32px;border-radius:50%;">` : 
+                    '👤';
+                
+                let valueDisplay = entry.value;
+                if (currentLeaderboardCategory === 'winRate') {
+                    valueDisplay = entry.value + '%';
+                } else if (currentLeaderboardCategory === 'profit') {
+                    valueDisplay = entry.value.toLocaleString() + ' VP';
+                }
+                
+                html += `<tr${entry.userId === currentUserId ? ' class="leaderboard-my-position"' : ''}>`;
+                html += `<td class="leaderboard-rank ${rankClass}">${entry.rank}</td>`;
+                html += `<td><div class="leaderboard-player"><div class="leaderboard-avatar">${avatar}</div><span>${escapeHtml(entry.displayName)}</span></div></td>`;
+                html += `<td class="leaderboard-value">${valueDisplay}</td>`;
+                html += `<td class="leaderboard-stats">${entry.stats.wins}✦/${entry.stats.losses}✖<br>${entry.stats.totalMatches} матчей</td>`;
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            body.innerHTML = html;
+            
+            // Update pagination
+            const totalPages = Math.ceil(total / LEADERBOARD_LIMIT);
+            const currentPage = Math.floor(currentLeaderboardOffset / LEADERBOARD_LIMIT) + 1;
+            document.getElementById('leaderboardPage').textContent = `${currentPage} / ${totalPages}`;
+            document.getElementById('leaderboardPagination').style.display = totalPages > 1 ? 'flex' : 'none';
+        }
+
+        async function loadMyLeaderboardPosition() {
+            try {
+                const res = await fetch(`${API_URL}/leaderboard/me?category=${currentLeaderboardCategory}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!res.ok) return;
+                
+                const data = await res.json();
+                if (data && data.rank) {
+                    // Add my position at the bottom if not in current view
+                    const existingRow = document.querySelector('.leaderboard-my-position');
+                    if (!existingRow) {
+                        const tbody = document.querySelector('.leaderboard-table tbody');
+                        if (tbody) {
+                            const categoryLabels = {
+                                wins: 'Побед',
+                                winRate: 'Винрейт',
+                                profit: 'VP выиграно',
+                                streak: 'Стрик',
+                                biggestWin: 'Макс. стрик'
+                            };
+                            
+                            let valueDisplay = data.value;
+                            if (currentLeaderboardCategory === 'winRate') {
+                                valueDisplay = data.value + '%';
+                            } else if (currentLeaderboardCategory === 'profit') {
+                                valueDisplay = data.value.toLocaleString() + ' VP';
+                            }
+                            
+                            const avatar = data.avatarUrl ? 
+                                `<img src="${data.avatarUrl}" style="width:32px;height:32px;border-radius:50%;">` : 
+                                '👤';
+                            
+                            const html = `<tr class="leaderboard-my-position">
+                                <td class="leaderboard-rank">${data.rank}</td>
+                                <td><div class="leaderboard-player"><div class="leaderboard-avatar">${avatar}</div><span>${escapeHtml(data.displayName)} (вы)</span></div></td>
+                                <td class="leaderboard-value">${valueDisplay}</td>
+                                <td class="leaderboard-stats">${data.stats.wins}✦/${data.stats.losses}✖<br>${data.stats.totalMatches} матчей</td>
+                            </tr>`;
+                            tbody.insertAdjacentHTML('beforeend', html);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load my position:', e);
+            }
+        }
+
+        function loadLeaderboardPrev() {
+            if (currentLeaderboardOffset >= LEADERBOARD_LIMIT) {
+                currentLeaderboardOffset -= LEADERBOARD_LIMIT;
+                loadLeaderboard();
+            }
+        }
+
+        function loadLeaderboardNext() {
+            currentLeaderboardOffset += LEADERBOARD_LIMIT;
+            loadLeaderboard();
+        }
+
         // Unified Stats Modal with Tabs
         let currentStatsTab = 'overview';
 
@@ -5572,6 +5841,34 @@
             </div>
         </div>
     </div>
+
+    <!-- Leaderboard Modal -->
+    <div class="modal-overlay" id="leaderboardModal" onclick="closeModal(event)">
+        <div class="modal modal-large" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3>🏆 Топ игроков</h3>
+                <button class="modal-close" onclick="hideLeaderboardModal()">×</button>
+            </div>
+            <!-- Category Tabs -->
+            <div class="stats-tabs" id="leaderboardTabs">
+                <button class="stats-tab active" onclick="switchLeaderboardCategory('wins')" id="lb-tab-wins">🏆 Победы</button>
+                <button class="stats-tab" onclick="switchLeaderboardCategory('winRate')" id="lb-tab-winRate">📈 Винрейт</button>
+                <button class="stats-tab" onclick="switchLeaderboardCategory('profit')" id="lb-tab-profit">💰 Профит</button>
+                <button class="stats-tab" onclick="switchLeaderboardCategory('streak')" id="lb-tab-streak">🔥 Стрик</button>
+                <button class="stats-tab" onclick="switchLeaderboardCategory('biggestWin')" id="lb-tab-biggestWin">⭐ Рекорд</button>
+            </div>
+            <div class="modal-body" id="leaderboardBody">
+                <div class="leaderboard-loading">Загрузка...</div>
+            </div>
+            <!-- Pagination -->
+            <div class="leaderboard-pagination" id="leaderboardPagination" style="display: none;">
+                <button class="btn btn-secondary" onclick="loadLeaderboardPrev()">← Назад</button>
+                <span id="leaderboardPage">1</span>
+                <button class="btn btn-secondary" onclick="loadLeaderboardNext()">Вперёд →</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Unified Stats Modal with Tabs -->
     <div class="modal-overlay" id="statsModal" onclick="closeModal(event)">
         <div class="modal modal-large" onclick="event.stopPropagation()">

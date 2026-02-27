@@ -1,4 +1,5 @@
 import { Controller, Get, Res } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AppService } from './app.service';
 import type { Response } from 'express';
 import * as fs from 'fs';
@@ -24,6 +25,7 @@ export class AppController {
   }
 
   // 🏥 Health check endpoint (для Docker, Kubernetes, load balancers)
+  @SkipThrottle() // Не применяем rate limiting к health check
   @Get('health')
   getHealth() {
     return {

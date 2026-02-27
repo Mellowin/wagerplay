@@ -332,20 +332,30 @@ export class MatchmakingService {
                 const { userId, stakeVp, frozenAt } = JSON.parse(data);
                 const frozenTime = now - frozenAt;
                 
-                // Если заморожено больше 5 минут - возвращаем
+                // Если заморожено больше 5 минут - проверяем необходимость возврата
                 if (frozenTime > FROZEN_STAKE_TIMEOUT_MS) {
-                    // Проверяем, не начался ли уже матч
-                    const activeState = await this.getUserActiveState(userId);
+                    // Проверяем, есть ли frozen средства на кошельке
+                    const wallet = await this.getWalletByUserId(userId);
                     
-                    // Возвращаем только если нет активного матча
-                    if (!activeState.activeMatch) {
-                        await this.unfreezeStake(userId, stakeVp);
-                        await this.redis.del(key);
+                    // Возвращаем только если:
+                    // 1. Есть frozen средства (frozenWp > 0)
+                    // 2. Нет активного матча
+                    if (wallet && wallet.frozenWp > 0) {
+                        const activeState = await this.getUserActiveState(userId);
                         
-                        cleaned++;
-                        totalReturned += stakeVp;
-                        console.log(`[cleanupStaleFrozenStakes] Returned ${stakeVp} VP to user ${userId.slice(0,8)} (frozen ${Math.floor(frozenTime/1000)}s)`);
+                        if (!activeState.activeMatch) {
+                            // Проверяем что frozen средства соответствуют записи
+                            if (wallet.frozenWp >= stakeVp) {
+                                await this.unfreezeStake(userId, stakeVp);
+                                cleaned++;
+                                totalReturned += stakeVp;
+                                console.log(`[cleanupStaleFrozenStakes] Returned ${stakeVp} VP to user ${userId.slice(0,8)} (frozen ${Math.floor(frozenTime/1000)}s)`);
+                            }
+                        }
                     }
+                    
+                    // Удаляем ключ в любом случае (чистим мусор)
+                    await this.redis.del(key);
                 }
             } catch (e) {
                 console.error(`[cleanupStaleFrozenStakes] Error processing key ${key}:`, e);

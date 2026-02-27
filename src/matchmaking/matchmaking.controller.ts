@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { MatchmakingService } from './matchmaking.service';
 import { SubmitMoveDto } from './dto/submit-move.dto';
 import { getUserIdFromToken } from '../common/token.utils';
@@ -12,6 +13,7 @@ export class MatchmakingController {
 
     @ApiOperation({ summary: 'Join matchmaking queue', description: 'Join queue for Rock Paper Scissors match' })
     @ApiResponse({ status: 200, description: 'Joined queue or match created' })
+    @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 попыток за минуту
     @Post('quickplay')
     async quickplay(
         @Headers('authorization') auth: string,
@@ -45,6 +47,7 @@ export class MatchmakingController {
     }
 
     @ApiOperation({ summary: 'Submit move', description: 'Submit ROCK, PAPER or SCISSORS move' })
+    @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 ходов за минуту
     @Post('match/:id/move')
     async move(
         @Param('id') id: string,
