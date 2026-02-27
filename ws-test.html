@@ -457,6 +457,13 @@
             box-shadow: 0 0 20px rgba(255,215,0,0.3);
         }
 
+        .player-card.current {
+            border-color: #00d4ff;
+            background: rgba(0,212,255,0.15);
+            box-shadow: 0 0 15px rgba(0,212,255,0.4);
+            transform: scale(1.05);
+        }
+
         .player-name {
             font-weight: 600;
             margin-bottom: 5px;
@@ -4284,7 +4291,9 @@
                         Object.entries(lr.moves).forEach(([pid, move]) => {
                             const isBot = pid.startsWith('BOT');
                             const botName = isBot ? (m.botNames?.[pid] || pid) : null;
-                            const name = isBot ? botName : (pid === userId ? 'Вы' : pid.slice(0, 8));
+                            // 👤 Используем никнейм из playerNames или сервера
+                            const playerDisplayName = !isBot ? (playerNames[pid] || m.playerNames?.[pid] || pid.slice(0,8)) : null;
+                            const name = isBot ? botName : (pid === userId ? playerDisplayName + ' (Вы)' : playerDisplayName);
                             const emoji = moveEmoji[move] || move;
                             log(`  ${name}: ${emoji} ${move}`);
                         });
@@ -4302,7 +4311,9 @@
                         losers.forEach(pid => {
                             const isBot = pid.startsWith('BOT');
                             const botName = isBot ? (m.botNames?.[pid] || pid) : null;
-                            const name = isBot ? botName : (pid === userId ? 'Вы' : pid.slice(0, 8));
+                            // 👤 Используем никнейм из playerNames или сервера
+                            const playerDisplayName = !isBot ? (playerNames[pid] || m.playerNames?.[pid] || pid.slice(0,8)) : null;
+                            const name = isBot ? botName : (pid === userId ? playerDisplayName + ' (Вы)' : playerDisplayName);
                             const skull = isBot ? '🤖' : (pid === userId ? '💀' : '👤');
                             log(`  ${skull} ${name} ВЫБЫВАЕТ!`);
                         });
@@ -4732,10 +4743,11 @@
                 let botDisplayName = isBot ? (m.botNames?.[pid] || pid) : pid;
                 // 👤 Используем displayName из playerNames (клиент) или m.playerNames (сервер)
                 let playerDisplayName = !isBot ? (playerNames[pid] || m.playerNames?.[pid] || pid.slice(0,8)) : botDisplayName;
-                let nameText = isMe ? '👤 ' + (t('you') || 'You') : isBot ? '🤖 ' + botDisplayName : '👤 ' + playerDisplayName;
+                // Для текущего игрока показываем "Никнейм (Вы)"
+                let nameText = isMe ? '👤 ' + playerDisplayName + ' (' + (t('you') || 'Вы') + ')' : isBot ? '🤖 ' + botDisplayName : '👤 ' + playerDisplayName;
 
                 html += `
-                    <div class="player-card ${isWinner ? 'winner' : isEliminated ? 'eliminated' : isAlive ? 'active' : ''}">
+                    <div class="player-card ${isWinner ? 'winner' : isEliminated ? 'eliminated' : isAlive ? 'active' : ''} ${isMe ? 'current' : ''}">
                         <div class="player-name">${nameText}</div>
                         <div class="player-move">${moveEmoji}</div>
                         <div class="player-status">${statusText}</div>
@@ -5408,12 +5420,25 @@
             body.innerHTML = '<div class="leaderboard-loading">Загрузка топа...</div>';
             document.getElementById('leaderboardPagination').style.display = 'none';
             
+            // Проверка токена
+            const currentToken = token || localStorage.getItem('token');
+            if (!currentToken) {
+                body.innerHTML = '<div class="leaderboard-empty">❌ Требуется авторизация</div>';
+                return;
+            }
+            
             try {
                 const res = await fetch(`${API_URL}/leaderboard?category=${currentLeaderboardCategory}&limit=${LEADERBOARD_LIMIT}&offset=${currentLeaderboardOffset}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
                 });
                 
-                if (!res.ok) throw new Error('Failed to load');
+                if (!res.ok) {
+                    if (res.status === 401) {
+                        body.innerHTML = '<div class="leaderboard-empty">❌ Сессия истекла. Перезайдите.</div>';
+                        return;
+                    }
+                    throw new Error('Failed to load');
+                }
                 
                 const data = await res.json();
                 renderLeaderboard(data.entries, data.total);
@@ -5478,8 +5503,11 @@
 
         async function loadMyLeaderboardPosition() {
             try {
+                const currentToken = token || localStorage.getItem('token');
+                if (!currentToken) return;
+                
                 const res = await fetch(`${API_URL}/leaderboard/me?category=${currentLeaderboardCategory}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: { 'Authorization': `Bearer ${currentToken}` }
                 });
                 
                 if (!res.ok) return;
