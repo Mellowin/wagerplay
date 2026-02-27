@@ -22,7 +22,8 @@ function getUserIdFromToken(authHeader?: string): string {
     const base64Payload = trimmed.split('.')[1];
     if (!base64Payload) return '';
     const payload = JSON.parse(Buffer.from(base64Payload, 'base64').toString());
-    return payload.sub || '';
+    // Support both old (sub) and new (userId) token formats
+    return payload.userId || payload.sub || '';
   } catch {
     return '';
   }
