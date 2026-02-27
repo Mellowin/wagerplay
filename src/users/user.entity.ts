@@ -42,6 +42,13 @@ export class User {
   @Column({ type: 'boolean', default: true })
   isGuest: boolean;
 
+  // 🛡️ Admin security fields
+  @Column({ type: 'varchar', length: 45, nullable: true })
+  adminIp: string | null; // IP с которого первый раз зашёл админ
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastAdminActivity: Date | null; // Последняя активность админа
+
   @CreateDateColumn()
   createdAt: Date;
 

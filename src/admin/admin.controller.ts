@@ -6,24 +6,21 @@ import {
     Headers,
     Query,
     BadRequestException,
-    UseGuards,
+    Ip,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { getUserIdFromToken } from '../common/token.utils';
 import { Throttle } from '@nestjs/throttler';
 
-// 🛡️ Простая проверка админа (в реальном проекте — через roles/permissions)
-const ADMIN_USER_IDS = [
-    // Здесь можно добавить UUID администраторов
-    // Например: '8207cf04-3bef-4c10-91bf-9c4bac23671e'
+// 🛡️ Whitelist админов по email
+const ADMIN_EMAILS = [
+    'mellowin1987@gmail.com',
+    'osanamyan@ukr.net',
 ];
 
-function isAdmin(userId: string): boolean {
-    // Временная проверка: первые 2 созданных пользователя — админы
-    // В продакшене заменить на нормальную проверку ролей
-    return true; // Пока разрешаем всем для тестирования
-}
+// ⏱️ Таймаут админской сессии (30 минут)
+const ADMIN_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -31,15 +28,24 @@ function isAdmin(userId: string): boolean {
 export class AdminController {
     constructor(private readonly adminService: AdminService) {}
 
-    // 🔐 Проверка прав админа
-    private checkAdmin(authHeader: string): string {
+    // 🔐 Проверка прав админа с IP и таймаутом
+    private async checkAdmin(authHeader: string, clientIp: string): Promise<string> {
         const adminId = getUserIdFromToken(authHeader);
         if (!adminId) {
             throw new BadRequestException('Unauthorized');
         }
-        if (!isAdmin(adminId)) {
-            throw new BadRequestException('Admin access required');
+
+        const result = await this.adminService.validateAdminSession(
+            adminId,
+            clientIp,
+            ADMIN_EMAILS,
+            ADMIN_SESSION_TIMEOUT_MS,
+        );
+
+        if (!result.isValid) {
+            throw new BadRequestException(result.error || 'Admin access required');
         }
+
         return adminId;
     }
 
@@ -52,11 +58,12 @@ export class AdminController {
     @Get('users')
     async getUsers(
         @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
         @Query('search') search?: string,
     ) {
-        this.checkAdmin(auth);
+        await this.checkAdmin(auth, clientIp);
         
         return this.adminService.getUsers(
             page ? parseInt(page, 10) : 1,
@@ -70,9 +77,10 @@ export class AdminController {
     @Get('users/:id')
     async getUserDetails(
         @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
         @Query('id') userId: string,
     ) {
-        this.checkAdmin(auth);
+        await this.checkAdmin(auth, clientIp);
         return this.adminService.getUserDetails(userId);
     }
 
@@ -87,13 +95,14 @@ export class AdminController {
     @Post('users/balance')
     async updateBalance(
         @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
         @Body() body: {
             userId: string;
             amount: number;
             reason: string;
         },
     ) {
-        const adminId = this.checkAdmin(auth);
+        await this.checkAdmin(auth, clientIp);
         
         if (!body.userId || body.amount === undefined) {
             throw new BadRequestException('userId and amount are required');
@@ -102,6 +111,8 @@ export class AdminController {
         if (!body.reason) {
             throw new BadRequestException('Reason is required for audit log');
         }
+
+        const adminId = getUserIdFromToken(auth)!;
 
         return this.adminService.updateUserBalance(
             adminId,
@@ -114,8 +125,11 @@ export class AdminController {
     @ApiOperation({ summary: 'Get admin dashboard stats', description: 'Overview statistics for admin panel' })
     @ApiResponse({ status: 200, description: 'Stats returned' })
     @Get('stats')
-    async getStats(@Headers('authorization') auth: string) {
-        this.checkAdmin(auth);
+    async getStats(
+        @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
+    ) {
+        await this.checkAdmin(auth, clientIp);
         
         // Базовая статистика
         const { users, total: totalUsers } = await this.adminService.getUsers(1, 1);

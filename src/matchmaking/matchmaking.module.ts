@@ -12,6 +12,7 @@ import { HouseModule } from '../house/house.module';
 @Module({
     imports: [TypeOrmModule.forFeature([User, Wallet, UserStats]), AuditModule, HouseModule],
     providers: [MatchmakingService, MatchmakingGateway],
-    controllers: [MatchmakingController]
+    controllers: [MatchmakingController],
+    exports: [MatchmakingService],
 })
 export class MatchmakingModule { }

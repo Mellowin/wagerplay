@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { UserStats } from '../users/user-stats.entity';
 import { Wallet } from './wallet.entity';
 import { getUserIdFromToken } from '../common/token.utils';
+import { MatchmakingService } from '../matchmaking/matchmaking.service';
 
 @ApiTags('Wallets')
 @ApiBearerAuth('JWT-auth')
@@ -15,6 +16,7 @@ export class WalletsController {
         private wallets: WalletsService,
         @InjectRepository(UserStats) private statsRepo: Repository<UserStats>,
         @InjectRepository(Wallet) private walletRepo: Repository<Wallet>,
+        private matchmaking: MatchmakingService,
     ) { }
 
     @ApiOperation({ summary: 'Get wallet balance', description: 'Returns current balance and frozen amount' })
@@ -36,6 +38,12 @@ export class WalletsController {
     async resetFrozen(@Headers('authorization') auth?: string) {
         const userId = getUserIdFromToken(auth);
         if (!userId) throw new BadRequestException('Unauthorized');
+        
+        // ❌ Запрет возврата во время активной игры
+        const activeState = await this.matchmaking.getUserActiveState(userId);
+        if (activeState.activeMatch) {
+            throw new BadRequestException('Cannot reset frozen balance while in active match');
+        }
         
         const result = await this.wallets.resetFrozen(userId);
         

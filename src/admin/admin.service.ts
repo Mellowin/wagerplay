@@ -26,6 +26,11 @@ export interface BalanceUpdateResult {
     reason: string;
 }
 
+export interface AdminSessionResult {
+    isValid: boolean;
+    error?: string;
+}
+
 @Injectable()
 export class AdminService {
     constructor(
@@ -38,6 +43,56 @@ export class AdminService {
         private audit: AuditService,
         private dataSource: DataSource,
     ) {}
+
+    // 🛡️ Проверка админской сессии (IP + таймаут)
+    async validateAdminSession(
+        userId: string,
+        clientIp: string,
+        adminEmails: string[],
+        timeoutMs: number,
+    ): Promise<AdminSessionResult> {
+        const user = await this.userRepo.findOne({ where: { id: userId } });
+
+        if (!user) {
+            return { isValid: false, error: 'User not found' };
+        }
+
+        // Проверка email в whitelist
+        if (!user.email || !adminEmails.includes(user.email.toLowerCase())) {
+            return { isValid: false, error: 'Admin access required' };
+        }
+
+        // Проверка/установка IP админа
+        if (!user.adminIp) {
+            // Первый вход - сохраняем IP
+            user.adminIp = clientIp;
+            await this.userRepo.save(user);
+            console.log(`[Admin] First login from IP ${clientIp} for ${user.email}`);
+        } else if (user.adminIp !== clientIp) {
+            // IP не совпадает
+            return { 
+                isValid: false, 
+                error: `Access denied: IP mismatch. Expected: ${user.adminIp}, got: ${clientIp}` 
+            };
+        }
+
+        // Проверка таймаута сессии
+        if (user.lastAdminActivity) {
+            const inactiveTime = Date.now() - new Date(user.lastAdminActivity).getTime();
+            if (inactiveTime > timeoutMs) {
+                return { 
+                    isValid: false, 
+                    error: `Session expired due to inactivity (${Math.round(inactiveTime / 60000)} min)` 
+                };
+            }
+        }
+
+        // Обновляем время последней активности
+        user.lastAdminActivity = new Date();
+        await this.userRepo.save(user);
+
+        return { isValid: true };
+    }
 
     // 📝 Получить список пользователей с пагинацией
     async getUsers(
