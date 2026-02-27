@@ -2027,6 +2027,10 @@
                 <span>📋</span>
                 <span id="burgerLogsText">Логи</span>
             </div>
+            <div class="dropdown-item" onclick="showAdminPanel(); closeMenu();">
+                <span>⚙️</span>
+                <span id="burgerAdminText">Админ</span>
+            </div>
         </div>
     </div>
 
@@ -5701,6 +5705,162 @@
         function hidePublicProfileModal() {
             document.getElementById('publicProfileModal').classList.remove('show');
         }
+
+        // 🛠️ Admin Panel Functions
+        let adminCurrentPage = 1;
+        
+        async function showAdminPanel() {
+            sounds.click();
+            if (!token) {
+                log('❌ Сначала войдите');
+                return;
+            }
+            
+            document.getElementById('adminModal').classList.add('show');
+            await loadAdminUsers();
+        }
+        
+        function hideAdminPanel() {
+            document.getElementById('adminModal').classList.remove('show');
+            document.getElementById('adminBalanceSection').style.display = 'none';
+        }
+        
+        async function loadAdminUsers(page = 1) {
+            adminCurrentPage = page;
+            const search = document.getElementById('adminSearchInput').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/users?page=${page}&limit=20${search ? '&search=' + encodeURIComponent(search) : ''}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Access denied or error');
+                }
+                
+                const data = await response.json();
+                renderAdminUsers(data.users, data.total);
+            } catch (e) {
+                console.error('loadAdminUsers error:', e);
+                document.getElementById('adminUsersList').innerHTML = 
+                    `<div style="text-align: center; padding: 20px; color: #ff6b6b;">❌ ${e.message}</div>`;
+            }
+        }
+        
+        function renderAdminUsers(users, total) {
+            const container = document.getElementById('adminUsersList');
+            
+            if (users.length === 0) {
+                container.innerHTML = '<div style="text-align: center; padding: 20px;">Пользователей не найдено</div>';
+                return;
+            }
+            
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid rgba(255,255,255,0.2);">
+                            <th style="padding: 10px; text-align: left;">ID</th>
+                            <th style="padding: 10px; text-align: left;">Email/Имя</th>
+                            <th style="padding: 10px; text-align: right;">Баланс</th>
+                            <th style="padding: 10px; text-align: center;">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            users.forEach(user => {
+                const displayName = user.displayName || user.email || `Guest ${user.id.slice(0,8)}`;
+                html += `
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <td style="padding: 10px; font-family: monospace; font-size: 0.85em;">${user.id.slice(0,8)}...</td>
+                        <td style="padding: 10px;">
+                            ${user.isGuest ? '👤 ' : ''}${displayName}
+                        </td>
+                        <td style="padding: 10px; text-align: right;">
+                            ${user.balanceWp.toLocaleString()} VP
+                            ${user.frozenWp > 0 ? `<small style="color: #ffd700;">(${user.frozenWp} заморожено)</small>` : ''}
+                        </td>
+                        <td style="padding: 10px; text-align: center;">
+                            <button onclick="selectUserForBalance('${user.id}', '${displayName}', ${user.balanceWp})" 
+                                    class="btn btn-primary" style="padding: 5px 10px; font-size: 0.85em;">
+                                💰 Баланс
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            
+            // Pagination
+            if (total > 20) {
+                const totalPages = Math.ceil(total / 20);
+                html += '<div style="display: flex; justify-content: center; gap: 10px; margin-top: 15px;">';
+                if (adminCurrentPage > 1) {
+                    html += `<button onclick="loadAdminUsers(${adminCurrentPage - 1})" class="btn btn-secondary">← Назад</button>`;
+                }
+                html += `<span style="padding: 8px;">Страница ${adminCurrentPage} из ${totalPages}</span>`;
+                if (adminCurrentPage < totalPages) {
+                    html += `<button onclick="loadAdminUsers(${adminCurrentPage + 1})" class="btn btn-secondary">Вперед →</button>`;
+                }
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function searchAdminUsers() {
+            loadAdminUsers(1);
+        }
+        
+        function selectUserForBalance(userId, displayName, balance) {
+            document.getElementById('adminSelectedUserId').value = userId;
+            document.getElementById('adminSelectedUserName').textContent = displayName;
+            document.getElementById('adminSelectedUserBalance').textContent = balance.toLocaleString();
+            document.getElementById('adminBalanceAmount').value = '';
+            document.getElementById('adminBalanceReason').value = '';
+            document.getElementById('adminBalanceSection').style.display = 'block';
+        }
+        
+        async function updateUserBalance() {
+            const userId = document.getElementById('adminSelectedUserId').value;
+            const amount = parseInt(document.getElementById('adminBalanceAmount').value);
+            const reason = document.getElementById('adminBalanceReason').value;
+            
+            if (!userId || isNaN(amount)) {
+                showToast('error', 'Заполните все поля');
+                return;
+            }
+            
+            if (!reason) {
+                showToast('error', 'Укажите причину изменения');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/users/balance`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ userId, amount, reason })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast('success', `✅ Баланс обновлён: ${result.oldBalance} → ${result.newBalance}`);
+                    document.getElementById('adminBalanceSection').style.display = 'none';
+                    loadAdminUsers(adminCurrentPage); // Refresh list
+                } else {
+                    showToast('error', result.message || 'Ошибка обновления баланса');
+                }
+            } catch (e) {
+                console.error('updateUserBalance error:', e);
+                showToast('error', 'Ошибка сети');
+            }
+        }
     </script>
 
     <!-- Login Modal -->
@@ -5905,6 +6065,57 @@
             </div>
         </div>
     </div>
+    <!-- Admin Panel Modal -->
+    <div class="modal" id="adminModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>⚙️ Админ Панель</h3>
+                <button class="modal-close" onclick="hideAdminPanel()">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- User Search -->
+                <div style="margin-bottom: 20px;">
+                    <input type="text" id="adminSearchInput" placeholder="Поиск по email или имени..." 
+                           style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: inherit;">
+                    <button onclick="searchAdminUsers()" class="btn btn-primary" style="margin-top: 10px;">🔍 Поиск</button>
+                </div>
+                
+                <!-- Users List -->
+                <div id="adminUsersList" style="max-height: 300px; overflow-y: auto;">
+                    <div style="text-align: center; padding: 20px; color: #888;">Загрузка...</div>
+                </div>
+                
+                <!-- Balance Update Section -->
+                <div id="adminBalanceSection" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); display: none;">
+                    <h4 style="margin-bottom: 15px;">💰 Изменить баланс</h4>
+                    <input type="hidden" id="adminSelectedUserId">
+                    <div style="display: grid; gap: 10px;">
+                        <div>
+                            <label>Пользователь:</label>
+                            <span id="adminSelectedUserName" style="font-weight: bold;"></span>
+                        </div>
+                        <div>
+                            <label>Текущий баланс:</label>
+                            <span id="adminSelectedUserBalance"></span> VP
+                        </div>
+                        <div>
+                            <label>Сумма изменения:</label>
+                            <input type="number" id="adminBalanceAmount" placeholder="+100 или -50" 
+                                   style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: inherit;">
+                            <small style="color: #888;">Положительное = добавить, отрицательное = снять</small>
+                        </div>
+                        <div>
+                            <label>Причина:</label>
+                            <input type="text" id="adminBalanceReason" placeholder="Бонус за турнир / Исправление ошибки" 
+                                   style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); color: inherit;">
+                        </div>
+                        <button onclick="updateUserBalance()" class="btn btn-success" style="margin-top: 10px;">💾 Применить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Confetti Canvas -->
     <canvas id="confettiCanvas" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;"></canvas>
     

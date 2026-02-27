@@ -16,6 +16,7 @@ import { AuditModule } from './audit/audit.module';
 import { HouseModule } from './house/house.module';
 import { AvatarsModule } from './avatars/avatars.module';
 import { ThrottleModule } from './throttle/throttle.module';
+import { AdminModule } from './admin/admin.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
 
 @Module({
@@ -44,6 +45,7 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
         HouseModule,
         AvatarsModule,
         ThrottleModule,
+        AdminModule,
         LeaderboardModule,
         // ServeStaticModule.forRoot({
         //     rootPath: join(process.cwd()),
