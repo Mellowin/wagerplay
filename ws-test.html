@@ -2027,7 +2027,8 @@
                 <span>📋</span>
                 <span id="burgerLogsText">Логи</span>
             </div>
-            <div class="dropdown-item" onclick="showAdminPanel(); closeMenu();">
+            <!-- Admin Panel Button - Only for admins -->
+            <div class="dropdown-item" id="adminMenuItem" onclick="showAdminPanel(); closeMenu();" style="display: none;">
                 <span>⚙️</span>
                 <span id="burgerAdminText">Админ</span>
             </div>
@@ -3182,10 +3183,14 @@
                     localStorage.setItem('isGuest', 'false');
                     currentProfile = {
                         displayName: data.displayName || data.username || email,
+                        email: data.email || email,
                         gender: data.gender || '',
                         avatarUrl: data.avatarUrl || '',
                         isGuest: false
                     };
+                    
+                    // Check admin access
+                    checkAdminAccess(data.email || email);
                     updateBalanceDisplay(data.balanceWp);
                     hideLoginModal();
                     showUserInfo(data.email || data.username);
@@ -3354,6 +3359,9 @@
                 // Проверяем сохраненное состояние UI
                 const savedUiState = localStorage.getItem('uiState');
                 console.log('[window.onload] savedUiState:', savedUiState);
+                
+                // Load profile to get email and check admin access
+                loadProfile();
                 
                 if (savedUiState === 'profile') {
                     console.log('[window.onload] Restoring PROFILE screen');
@@ -3618,8 +3626,12 @@
         function updateBalanceDisplay(balance, frozen = 0) {
             document.getElementById('balanceDisplay').textContent = `${balance} VP`;
             const frozenEl = document.getElementById('frozenDisplay');
-            if (frozen > 0) {
+            const isCurrentlyInMatch = activeMatches.size > 0;
+            
+            if (frozen > 0 && !isCurrentlyInMatch) {
                 frozenEl.innerHTML = `Заморожено: ${frozen} VP <button onclick="resetFrozen()" style="margin-left:10px;padding:4px 8px;font-size:0.8em;background:#ff6b6b;border:none;border-radius:4px;color:white;cursor:pointer;">Вернуть</button>`;
+            } else if (frozen > 0 && isCurrentlyInMatch) {
+                frozenEl.innerHTML = `Заморожено: ${frozen} VP <span style="margin-left:10px;font-size:0.8em;color:#fbbf24;">🔒 В игре</span>`;
             } else {
                 frozenEl.textContent = '';
             }
@@ -3629,6 +3641,12 @@
         async function resetFrozen() {
             if (!token) {
                 showToast('error', 'Необходима авторизация');
+                return;
+            }
+            
+            // Запрет возврата во время матча
+            if (activeMatches.size > 0) {
+                showToast('warning', '❌ Нельзя вернуть средства во время игры');
                 return;
             }
             
@@ -3760,10 +3778,14 @@
                 const guestDisplayName = j.displayName || `Guest${userId.slice(0,6)}`;
                 currentProfile = {
                     displayName: guestDisplayName,
+                    email: '',
                     gender: '',
                     avatarUrl: '',
                     isGuest: true
                 };
+                
+                // Hide admin menu for guests
+                checkAdminAccess(null);
                 // Сохраняем displayName для F5 recovery
                 localStorage.setItem('displayName', guestDisplayName);
                 updateBalanceDisplay(j.balanceWp);
@@ -4797,10 +4819,25 @@
         // Profile Functions
         let currentProfile = {
             displayName: '',
+            email: '',
             gender: '',
             avatarUrl: '',
             isGuest: true
         };
+
+        // 🛡️ Admin emails - Add your email here to see Admin button
+        const ADMIN_EMAILS = [
+            // Example: 'admin@example.com',
+            // Add your email here
+        ];
+
+        // Check if user is admin
+        function checkAdminAccess(userEmail) {
+            const adminItem = document.getElementById('adminMenuItem');
+            if (adminItem && userEmail && ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+                adminItem.style.display = 'flex';
+            }
+        }
         let selectedAvatarId = '';
 
         function goToProfileScreen() {
@@ -4957,10 +4994,14 @@
                 
                 currentProfile = {
                     displayName: displayName,
+                    email: data.email || '',
                     gender: data.gender || '',
                     avatarUrl: data.avatarUrl || '',
                     isGuest: data.isGuest
                 };
+                
+                // Check admin access
+                checkAdminAccess(data.email);
                 
                 // Для гостей сохраняем displayName обратно в localStorage
                 if (isGuestUser && savedDisplayName) {
@@ -5088,6 +5129,7 @@
                     currentProfile.displayName = displayName;
                     currentProfile.gender = gender;
                     currentProfile.avatarUrl = avatarUrl;
+                    // email не меняется при обновлении профиля
                     // Save displayName to localStorage for F5 recovery
                     localStorage.setItem('displayName', displayName);
                     
