@@ -28,8 +28,10 @@ export class JwtAuthGuard implements CanActivate {
 
         try {
             const payload = this.jwtService.verify(token);
-            console.log(`[JwtAuthGuard] ✅ Verified, userId: ${payload.userId?.substring(0, 8)}...`);
-            request.user = payload;
+            // Fallback: используем sub если userId не определен (для старых токенов)
+            const userId = payload.userId || payload.sub;
+            console.log(`[JwtAuthGuard] ✅ Verified, userId: ${userId?.substring(0, 8)}...`);
+            request.user = { ...payload, userId };
             return true;
         } catch (err) {
             console.log(`[JwtAuthGuard] ❌ Token verify failed: ${err.message}`);

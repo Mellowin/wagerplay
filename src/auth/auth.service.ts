@@ -423,6 +423,7 @@ export class AuthService {
 
     // Генерируем JWT токен для гостя (как для обычного пользователя)
     const token = this.jwtService.sign({ 
+      sub: user.id,
       userId: user.id, 
       isGuest: true,
       username: user.username,

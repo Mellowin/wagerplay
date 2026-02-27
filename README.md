@@ -1,6 +1,6 @@
 # WagerPlay Backend
 
-Real-time multiplayer Rock-Paper-Scissors gaming platform with matchmaking, betting system, and bot integration.
+Real-time multiplayer Rock-Paper-Scissors gaming platform with matchmaking, betting system, bot integration, and comprehensive admin tools.
 
 [![NestJS](https://img.shields.io/badge/NestJS-E0234E?style=flat&logo=nestjs&logoColor=white)](https://nestjs.com/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -29,11 +29,27 @@ Real-time multiplayer Rock-Paper-Scissors gaming platform with matchmaking, bett
 - **Payouts** - Automatic winner distribution
 - **Reconciliation** - Balance verification against history
 
+### Leaderboard System
+- **5 Categories**: Wins, Win Rate, Profit, Current Streak, Max Streak
+- **Pagination** - Navigate through top players
+- **Real-time Position** - See your rank in each category
+- **Player Stats** - Detailed statistics for each player
+
 ### User Features
 - **Authentication** - JWT tokens + guest login
 - **User Profiles** - Custom display names, avatars
 - **Statistics** - Games played, wins/losses, VP earned/lost
 - **Chat** - Global and in-game match chat
+
+### Admin Panel
+- **Balance Management** - Add/remove VP from users
+- **User Ban System** - Ban/unban users with reason logging
+- **Security**:
+  - IP Whitelist - Admin access locked to first-login IP
+  - Session Timeout - Auto-logout after 30 min inactivity
+  - Email Whitelist - Only approved emails can access admin
+- **Resizable UI** - Adjustable modal size for convenience
+- **Audit Logs** - Track all admin actions
 
 ### Security & Audit
 - **IDOR Protection** - Resource access validation
@@ -41,7 +57,7 @@ Real-time multiplayer Rock-Paper-Scissors gaming platform with matchmaking, bett
 - **Audit Logging** - Financial operation tracking
 - **Race Condition Handling** - PostgreSQL Advisory Locks + Redis locks
 - **Frozen Stake Protection** - Auto-return after 5 min timeout
-- **JWT Authentication** - Secure token-based auth
+- **JWT Authentication** - Secure token-based auth with global module
 
 ### DevOps & Monitoring
 - **Swagger API Docs** - Interactive documentation at `/api/docs`
@@ -71,6 +87,13 @@ src/
 │   └── matchmaking.controller.ts
 ├── wallets/              # Financial system
 ├── auth/                 # JWT authentication
+│   ├── jwt-auth.module.ts    # Global JWT module
+│   ├── jwt-auth.guard.ts
+│   └── auth.service.ts
+├── leaderboard/          # Leaderboard system
+│   ├── leaderboard.service.ts
+│   └── leaderboard.controller.ts
+├── admin/                # Admin panel & user management
 ├── users/                # User management
 ├── audit/                # Audit logging
 └── house/                # House bank
@@ -117,6 +140,7 @@ REDIS_URL=redis://localhost:6379
 JWT_SECRET=your-secret-key
 PORT=3000
 NODE_ENV=development
+ADMIN_TOKEN=your-admin-token
 ```
 
 ## Testing
@@ -141,27 +165,66 @@ npm run test:e2e
 Interactive Swagger documentation available at: `http://localhost:3000/api/docs`
 
 ### REST Endpoints
+
+#### Authentication
 ```
 POST   /auth/guest              # Guest login
 POST   /auth/register           # User registration
 POST   /auth/login              # User login
-POST   /matchmaking/quickplay   # Join queue
-POST   /matchmaking/match/:id/move  # Submit move
+GET    /auth/me                 # Current user info
+PATCH  /auth/profile            # Update profile
+```
+
+#### Matchmaking
+```
+POST   /matchmaking/quickplay           # Join queue
+POST   /matchmaking/match/:id/move      # Submit move
+GET    /matchmaking/match/:id           # Get match details
+GET    /matchmaking/history             # Match history
+GET    /matchmaking/online              # Online players count
+```
+
+#### Wallet
+```
 GET    /wallet                   # Get balance
 POST   /wallet/reset-frozen     # Return frozen stake
 GET    /wallet/reconcile         # Verify integrity
-GET    /matchmaking/history      # Match history
-GET    /health                   # Server health check
+```
+
+#### Leaderboard
+```
+GET    /leaderboard              # Get top players
+GET    /leaderboard/me           # Get my position
+GET    /leaderboard/categories   # List categories
+```
+
+#### Admin (Requires admin privileges)
+```
+GET    /admin/users              # List all users
+POST   /admin/users/balance      # Update user balance
+POST   /admin/users/ban          # Ban user
+POST   /admin/users/unban        # Unban user
 ```
 
 ### WebSocket Events
 ```
+# Queue Events
 queue:join          # Joined queue
 queue:sync          # Queue status
+queue:error         # Queue error
+
+# Match Events  
 match:found         # Match created
-match:state         # Game state
-match:timer         # Countdown
+match:start         # Match started
+match:state         # Game state update
+match:timer         # Countdown timer
 match:round_result  # Round resolution
+match:elimination   # Player eliminated
+match:end           # Match ended
+
+# Chat Events
+chat:global         # Global chat message
+chat:game           # In-game chat message
 ```
 
 ## How It Works
@@ -169,7 +232,7 @@ match:round_result  # Round resolution
 ### Match Flow
 1. Player clicks "Quick Play" → joins Redis queue
 2. 20-second timer to gather players
-3. If < 2 players → bots added
+3. If < 2 players → bots added automatically
 4. Countdown 5-4-3-2-1 → match starts
 5. 12-second rounds (Rock/Paper/Scissors)
 6. AFK players get auto-move
@@ -190,12 +253,47 @@ fee: 10 VP (5% house)
 payout: 190 VP → winner
 ```
 
-## Bot System
+### Leaderboard Categories
+- **Wins** - Total victories
+- **Win Rate** - Win percentage (min 10 matches)
+- **Profit** - Total VP earned
+- **Current Streak** - Current win streak
+- **Max Streak** - All-time longest streak
 
+### Bot System
 Bots automatically fill incomplete matches:
 - **Trigger**: If queue has < required players after 20s
 - **Behavior**: Realistic nicknames, random moves
 - **Combinations Tested**: 1+ bots, 2+ bots, 3+ bots, 4+ bots, 5 real players
+
+### Admin Security
+```typescript
+// 1. Email whitelist check
+const whitelistedEmails = ['admin@example.com'];
+
+// 2. IP lock on first login
+if (!user.adminIp) user.adminIp = currentIp;
+if (user.adminIp !== currentIp) throw Forbidden;
+
+// 3. Session timeout check
+if (now - user.lastAdminActivity > 30min) throw Unauthorized;
+
+// 4. Update activity on each call
+user.lastAdminActivity = now;
+```
+
+### Ban System
+```typescript
+// Ban user
+POST /admin/users/ban
+{
+  "userId": "uuid",
+  "reason": "Cheating"
+}
+
+// User cannot login when banned
+// Ban reason stored for audit
+```
 
 ## Key Technical Decisions
 
@@ -205,6 +303,19 @@ Bots automatically fill incomplete matches:
 - Atomic operations via Lua scripts
 - Perfect for transient match state
 - Keys: `queue:{players}:{stake}`, `ticket:{id}`, `match:{id}`
+
+### Global JWT Module
+```typescript
+@Global()
+@Module({
+  imports: [JwtModule.registerAsync({...})],
+  exports: [JwtModule, JwtAuthGuard],
+})
+export class JwtAuthModule {}
+```
+- Single JWT configuration across all modules
+- Consistent token validation
+- No duplicate JwtModule imports
 
 ### Frozen Stake Protection
 ```typescript
@@ -221,10 +332,6 @@ if (frozenTime > 5 * 60 * 1000 && !hasActiveMatch) {
 // 3. User can manually return anytime
 POST /wallet/reset-frozen
 ```
-- O(1) queue operations
-- Built-in TTL for ticket expiration
-- Atomic operations via Lua scripts
-- Perfect for transient match state
 
 ### Race Condition Protection
 ```typescript
@@ -277,6 +384,7 @@ Open `http://localhost:3000/ws-test.html` after starting the server.
 5. Watch matchmaking (20s or 2 players)
 6. Make moves within 12 seconds
 7. Refresh page (F5) → state restored
+8. Click "🏆 Топ" → view leaderboard
 
 ## License
 

@@ -41,18 +41,26 @@ export class LeaderboardService {
         limit: number = 10,
         offset: number = 0,
     ): Promise<{ entries: LeaderboardEntry[]; total: number }> {
+        console.log(`[LeaderboardService] getLeaderboard called: category=${category}, limit=${limit}, offset=${offset}`);
         const orderField = this.getOrderField(category);
+        console.log(`[LeaderboardService] orderField: ${orderField}`);
         
         // Получаем общее количество
         const total = await this.userStatsRepo.count();
+        console.log(`[LeaderboardService] total records: ${total}`);
         
         // Получаем статистику с сортировкой
+        console.log(`[LeaderboardService] querying with: order=${orderField} DESC, take=${limit}, skip=${offset}`);
         const stats = await this.userStatsRepo.find({
             order: { [orderField]: 'DESC' },
             take: limit,
             skip: offset,
             relations: ['user'],
         });
+        console.log(`[LeaderboardService] found ${stats.length} records`);
+        if (stats.length > 0) {
+            console.log(`[LeaderboardService] first record: userId=${stats[0].userId}, ${orderField}=${stats[0][orderField as keyof UserStats]}`);
+        }
 
         // Формируем ответ
         const entries: LeaderboardEntry[] = [];
@@ -90,6 +98,7 @@ export class LeaderboardService {
             });
         }
 
+        console.log(`[LeaderboardService] returning ${entries.length} entries`);
         return { entries, total };
     }
 
@@ -100,6 +109,7 @@ export class LeaderboardService {
         userId: string,
         category: LeaderboardCategory = 'wins',
     ): Promise<LeaderboardEntry | null> {
+        console.log(`[LeaderboardService] findUserPosition called: userId=${userId}, category=${category}`);
         const orderField = this.getOrderField(category);
         
         // Получаем статистику пользователя
@@ -107,6 +117,7 @@ export class LeaderboardService {
             where: { userId },
             relations: ['user'],
         });
+        console.log(`[LeaderboardService] user stat found: ${stat ? 'yes' : 'no'}`);
 
         if (!stat) {
             return null;

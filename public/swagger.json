@@ -1073,6 +1073,78 @@
         ]
       }
     },
+    "/admin/users/ban": {
+      "post": {
+        "description": "Ban user with reason. Banned users cannot login or play.",
+        "operationId": "AdminController_banUser",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User banned successfully"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Admin access required"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Ban user",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/users/unban": {
+      "post": {
+        "description": "Remove ban from user.",
+        "operationId": "AdminController_unbanUser",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User unbanned successfully"
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "403": {
+            "description": "Admin access required"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Unban user",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/leaderboard": {
       "get": {
         "description": "Returns top players sorted by specified category",

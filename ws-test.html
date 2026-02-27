@@ -5471,20 +5471,30 @@
                     throw new Error('Failed to load');
                 }
                 
-                const data = await res.json();
+                const text = await res.text();
+                console.log('[loadLeaderboard] Response text:', text.substring(0, 500));
+                const data = JSON.parse(text);
+                console.log('[loadLeaderboard] Parsed data:', { entries: data.entries?.length, total: data.total });
                 renderLeaderboard(data.entries, data.total);
             } catch (e) {
+                console.error('[loadLeaderboard] Error:', e);
+                console.error('[loadLeaderboard] Error stack:', e.stack);
                 body.innerHTML = '<div class="leaderboard-empty">❌ Ошибка загрузки топа</div>';
             }
         }
 
         function renderLeaderboard(entries, total) {
+            console.log('[renderLeaderboard] Called with entries:', entries?.length, 'total:', total);
             const body = document.getElementById('leaderboardBody');
             
             if (!entries || entries.length === 0) {
+                console.log('[renderLeaderboard] No entries to render');
                 body.innerHTML = '<div class="leaderboard-empty">📜 Нет данных</div>';
                 return;
             }
+            
+            try {
+                console.log('[renderLeaderboard] First entry:', entries[0]);
             
             const categoryLabels = {
                 wins: 'Побед',
@@ -5514,7 +5524,7 @@
                     valueDisplay = entry.value.toLocaleString() + ' VP';
                 }
                 
-                html += `<tr${entry.userId === currentUserId ? ' class="leaderboard-my-position"' : ''}>`;
+                html += `<tr${entry.userId === userId ? ' class="leaderboard-my-position"' : ''}>`;
                 html += `<td class="leaderboard-rank ${rankClass}">${entry.rank}</td>`;
                 html += `<td><div class="leaderboard-player"><div class="leaderboard-avatar">${avatar}</div><span>${escapeHtml(entry.displayName)}</span></div></td>`;
                 html += `<td class="leaderboard-value">${valueDisplay}</td>`;
@@ -5530,6 +5540,12 @@
             const currentPage = Math.floor(currentLeaderboardOffset / LEADERBOARD_LIMIT) + 1;
             document.getElementById('leaderboardPage').textContent = `${currentPage} / ${totalPages}`;
             document.getElementById('leaderboardPagination').style.display = totalPages > 1 ? 'flex' : 'none';
+            
+            } catch (e) {
+                console.error('[renderLeaderboard] Render error:', e);
+                console.error('[renderLeaderboard] Render error stack:', e.stack);
+                body.innerHTML = '<div class="leaderboard-empty">❌ Ошибка отображения топа</div>';
+            }
         }
 
         async function loadMyLeaderboardPosition() {
