@@ -1343,21 +1343,41 @@
         }
 
         .modal-large {
-            max-width: 500px;
+            max-width: 90vw;
+            min-width: 400px;
+            min-height: 300px;
+            max-height: 90vh;
             padding: 0;
-            overflow: hidden;
+            overflow: auto;
+            resize: both;
+            position: relative;
+        }
+
+        /* Resize handle indicator */
+        .modal-large::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.3) 50%);
+            cursor: se-resize;
+            border-bottom-right-radius: 20px;
+        }
+
+        .modal-large .modal-body {
+            padding: 20px 30px;
+            max-height: calc(90vh - 80px);
+            overflow-y: auto;
+            resize: vertical;
         }
 
         .modal-large .modal-header {
             padding: 20px 30px;
             margin: 0;
             border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .modal-large .modal-body {
-            padding: 20px 30px;
-            max-height: 500px;
-            overflow-y: auto;
+            cursor: move;
         }
 
         @keyframes slideUp {
