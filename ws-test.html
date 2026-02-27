@@ -5717,12 +5717,15 @@
             }
             
             document.getElementById('adminModal').classList.add('show');
+            document.getElementById('adminBalanceSection').style.display = 'none';
             await loadAdminUsers();
         }
         
         function hideAdminPanel() {
-            document.getElementById('adminModal').classList.remove('show');
-            document.getElementById('adminBalanceSection').style.display = 'none';
+            const modal = document.getElementById('adminModal');
+            if (modal) modal.classList.remove('show');
+            const balanceSection = document.getElementById('adminBalanceSection');
+            if (balanceSection) balanceSection.style.display = 'none';
         }
         
         async function loadAdminUsers(page = 1) {
@@ -6066,8 +6069,8 @@
         </div>
     </div>
     <!-- Admin Panel Modal -->
-    <div class="modal" id="adminModal">
-        <div class="modal-content modal-large">
+    <div class="modal-overlay" id="adminModal" onclick="hideAdminPanel()">
+        <div class="modal modal-large" onclick="event.stopPropagation()">
             <div class="modal-header">
                 <h3>⚙️ Админ Панель</h3>
                 <button class="modal-close" onclick="hideAdminPanel()">×</button>
