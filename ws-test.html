@@ -5826,6 +5826,39 @@
         // 🛠️ Admin Panel Functions
         let adminCurrentPage = 1;
         
+        // 🔄 Авто-пинг админской сессии (каждые 5 минут)
+        let adminPingInterval = null;
+        
+        async function pingAdminSession() {
+            try {
+                const response = await fetch(`${API_URL}/admin/ping`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) {
+                    console.warn('[AdminPing] Session ping failed:', response.status);
+                } else {
+                    console.log('[AdminPing] Session extended');
+                }
+            } catch (e) {
+                console.warn('[AdminPing] Ping error:', e);
+            }
+        }
+        
+        function startAdminPing() {
+            if (adminPingInterval) clearInterval(adminPingInterval);
+            adminPingInterval = setInterval(pingAdminSession, 5 * 60 * 1000); // каждые 5 минут
+            console.log('[AdminPing] Started');
+        }
+        
+        function stopAdminPing() {
+            if (adminPingInterval) {
+                clearInterval(adminPingInterval);
+                adminPingInterval = null;
+                console.log('[AdminPing] Stopped');
+            }
+        }
+        
         async function showAdminPanel() {
             sounds.click();
             if (!token) {
@@ -5835,6 +5868,7 @@
             
             document.getElementById('adminModal').classList.add('show');
             document.getElementById('adminBalanceSection').style.display = 'none';
+            startAdminPing(); // Запускаем авто-пинг
             await loadAdminUsers();
         }
         
@@ -5843,6 +5877,7 @@
             if (modal) modal.classList.remove('show');
             const balanceSection = document.getElementById('adminBalanceSection');
             if (balanceSection) balanceSection.style.display = 'none';
+            stopAdminPing(); // Останавливаем авто-пинг
         }
         
         async function loadAdminUsers(page = 1) {

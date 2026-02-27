@@ -53,14 +53,27 @@ export class AdminService {
         adminEmails: string[],
         timeoutMs: number,
     ): Promise<AdminSessionResult> {
+        console.log(`[AdminService] validateAdminSession START`);
+        console.log(`[AdminService] userId: ${userId}`);
+        console.log(`[AdminService] clientIp: ${clientIp}`);
+        console.log(`[AdminService] adminEmails: ${JSON.stringify(adminEmails)}`);
+        console.log(`[AdminService] timeoutMs: ${timeoutMs}`);
+        
         const user = await this.userRepo.findOne({ where: { id: userId } });
-
+        console.log(`[AdminService] User found: ${user ? 'YES' : 'NO'}`);
+        
         if (!user) {
+            console.log(`[AdminService] ERROR: User not found`);
             return { isValid: false, error: 'User not found' };
         }
+        
+        console.log(`[AdminService] User email: ${user.email}`);
+        console.log(`[AdminService] User adminIp: ${user.adminIp}`);
+        console.log(`[AdminService] User lastAdminActivity: ${user.lastAdminActivity}`);
 
         // Проверка email в whitelist
         if (!user.email || !adminEmails.includes(user.email.toLowerCase())) {
+            console.log(`[AdminService] ERROR: Email not in whitelist. User email: ${user.email}`);
             return { isValid: false, error: 'Admin access required' };
         }
 
@@ -72,6 +85,7 @@ export class AdminService {
             console.log(`[Admin] First login from IP ${clientIp} for ${user.email}`);
         } else if (user.adminIp !== clientIp) {
             // IP не совпадает
+            console.log(`[AdminService] ERROR: IP mismatch. Expected: ${user.adminIp}, got: ${clientIp}`);
             return { 
                 isValid: false, 
                 error: `Access denied: IP mismatch. Expected: ${user.adminIp}, got: ${clientIp}` 
@@ -81,17 +95,23 @@ export class AdminService {
         // Проверка таймаута сессии
         if (user.lastAdminActivity) {
             const inactiveTime = Date.now() - new Date(user.lastAdminActivity).getTime();
+            console.log(`[AdminService] inactiveTime: ${inactiveTime}ms (${Math.round(inactiveTime / 60000)} min)`);
+            console.log(`[AdminService] timeoutMs: ${timeoutMs}ms (${Math.round(timeoutMs / 60000)} min)`);
             if (inactiveTime > timeoutMs) {
+                console.log(`[AdminService] ERROR: Session expired`);
                 return { 
                     isValid: false, 
                     error: `Session expired due to inactivity (${Math.round(inactiveTime / 60000)} min)` 
                 };
             }
+        } else {
+            console.log(`[AdminService] No lastAdminActivity, first login`);
         }
 
         // Обновляем время последней активности
         user.lastAdminActivity = new Date();
         await this.userRepo.save(user);
+        console.log(`[AdminService] Session validated successfully`);
 
         return { isValid: true };
     }

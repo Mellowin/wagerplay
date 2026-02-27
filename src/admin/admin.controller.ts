@@ -19,8 +19,8 @@ const ADMIN_EMAILS = [
     'osanamyan@ukr.net',
 ];
 
-// ⏱️ Таймаут админской сессии (30 минут)
-const ADMIN_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
+// ⏱️ Таймаут админской сессии (8 часов - авто-продление при активности)
+const ADMIN_SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000;
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -30,22 +30,33 @@ export class AdminController {
 
     // 🔐 Проверка прав админа с IP и таймаутом
     private async checkAdmin(authHeader: string, clientIp: string): Promise<string> {
+        console.log('[AdminController] checkAdmin called');
+        console.log('[AdminController] authHeader:', authHeader ? 'present' : 'missing');
+        console.log('[AdminController] clientIp:', clientIp);
+        
         const adminId = getUserIdFromToken(authHeader);
+        console.log('[AdminController] extracted adminId:', adminId);
+        
         if (!adminId) {
+            console.log('[AdminController] ERROR: No adminId extracted');
             throw new BadRequestException('Unauthorized');
         }
 
+        console.log('[AdminController] Calling validateAdminSession...');
         const result = await this.adminService.validateAdminSession(
             adminId,
             clientIp,
             ADMIN_EMAILS,
             ADMIN_SESSION_TIMEOUT_MS,
         );
+        console.log('[AdminController] validateAdminSession result:', result);
 
         if (!result.isValid) {
+            console.log('[AdminController] ERROR: Invalid admin session:', result.error);
             throw new BadRequestException(result.error || 'Admin access required');
         }
 
+        console.log('[AdminController] Admin check passed');
         return adminId;
     }
 
@@ -191,5 +202,20 @@ export class AdminController {
         }
 
         return this.adminService.unbanUser(adminId, body.userId);
+    }
+
+    @ApiOperation({ 
+        summary: 'Ping admin session', 
+        description: 'Keep admin session alive. Call every 5 minutes while admin panel is open.' 
+    })
+    @ApiResponse({ status: 200, description: 'Session extended' })
+    @ApiResponse({ status: 403, description: 'Admin access required' })
+    @Post('ping')
+    async pingSession(
+        @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
+    ) {
+        await this.checkAdmin(auth, clientIp);
+        return { success: true, message: 'Session extended' };
     }
 }
