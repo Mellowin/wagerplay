@@ -132,6 +132,11 @@ export class AuthService {
       throw new UnauthorizedException('Email не подтвержден. Проверьте почту.');
     }
 
+    // 🚫 Проверка бана
+    if (user.isBanned) {
+      throw new UnauthorizedException(`Аккаунт заблокирован. Причина: ${user.banReason || 'Нарушение правил'}`);
+    }
+
     // Генерируем JWT token с подписью
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
 
@@ -234,6 +239,11 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException('Пользователь не найден');
+    }
+
+    // 🚫 Проверка бана
+    if (user.isBanned) {
+      throw new UnauthorizedException(`Аккаунт заблокирован. Причина: ${user.banReason || 'Нарушение правил'}`);
     }
 
     return {
@@ -411,10 +421,16 @@ export class AuthService {
     });
     await this.walletsRepo.save(wallet);
 
-    // Гостевой токен - plain UUID (гости временные, JWT не нужен)
+    // Генерируем JWT токен для гостя (как для обычного пользователя)
+    const token = this.jwtService.sign({ 
+      userId: user.id, 
+      isGuest: true,
+      username: user.username,
+    });
+    
     return { 
       userId: user.id, 
-      token: user.id, 
+      token: token, 
       balanceWp: wallet.balanceWp,
       isGuest: true,
       displayName: user.displayName,

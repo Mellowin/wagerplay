@@ -10,6 +10,7 @@ import { AppService } from './app.service';
 import { User } from './users/user.entity';
 import { Wallet } from './wallets/wallet.entity';
 import { AuthModule } from './auth/auth.module';
+import { JwtAuthModule } from './auth/jwt-auth.module';
 import { MatchmakingModule } from './matchmaking/matchmaking.module';
 import { WalletsModule } from './wallets/wallets.module';
 import { AuditModule } from './audit/audit.module';
@@ -22,6 +23,9 @@ import { LeaderboardModule } from './leaderboard/leaderboard.module';
 @Module({
     imports: [
         ConfigModule.forRoot({ isGlobal: true }),
+
+        // Global JWT module - один для всего приложения
+        JwtAuthModule,
 
         TypeOrmModule.forRootAsync({
             inject: [ConfigService],

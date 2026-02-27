@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { UserStats } from '../users/user-stats.entity';
 import { User } from '../users/user.entity';
 
@@ -124,7 +124,7 @@ export class LeaderboardService {
         } else {
             countAbove = await this.userStatsRepo.count({
                 where: {
-                    [orderField]: { $gt: userValue } as any,
+                    [orderField]: MoreThan(userValue),
                 },
             });
         }

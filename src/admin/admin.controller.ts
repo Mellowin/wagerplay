@@ -141,4 +141,55 @@ export class AdminController {
             totalVolume24h: 0, // Можно добавить позже
         };
     }
+
+    @ApiOperation({ 
+        summary: 'Ban user', 
+        description: 'Ban user with reason. Banned users cannot login or play.' 
+    })
+    @ApiResponse({ status: 200, description: 'User banned successfully' })
+    @ApiResponse({ status: 400, description: 'Invalid request' })
+    @ApiResponse({ status: 403, description: 'Admin access required' })
+    @Throttle({ default: { limit: 20, ttl: 60000 } })
+    @Post('users/ban')
+    async banUser(
+        @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
+        @Body() body: {
+            userId: string;
+            reason: string;
+        },
+    ) {
+        const adminId = await this.checkAdmin(auth, clientIp);
+        
+        if (!body.userId || !body.reason) {
+            throw new BadRequestException('userId and reason are required');
+        }
+
+        return this.adminService.banUser(adminId, body.userId, body.reason);
+    }
+
+    @ApiOperation({ 
+        summary: 'Unban user', 
+        description: 'Remove ban from user.' 
+    })
+    @ApiResponse({ status: 200, description: 'User unbanned successfully' })
+    @ApiResponse({ status: 400, description: 'Invalid request' })
+    @ApiResponse({ status: 403, description: 'Admin access required' })
+    @Throttle({ default: { limit: 20, ttl: 60000 } })
+    @Post('users/unban')
+    async unbanUser(
+        @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
+        @Body() body: {
+            userId: string;
+        },
+    ) {
+        const adminId = await this.checkAdmin(auth, clientIp);
+        
+        if (!body.userId) {
+            throw new BadRequestException('userId is required');
+        }
+
+        return this.adminService.unbanUser(adminId, body.userId);
+    }
 }

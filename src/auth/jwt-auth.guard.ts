@@ -8,22 +8,31 @@ export class JwtAuthGuard implements CanActivate {
     canActivate(context: ExecutionContext): boolean {
         const request = context.switchToHttp().getRequest();
         const authHeader = request.headers.authorization;
+        const path = request.path || request.url;
+
+        console.log(`[JwtAuthGuard] Path: ${path}`);
+        console.log(`[JwtAuthGuard] Auth header: ${authHeader ? authHeader.substring(0, 50) + '...' : 'NONE'}`);
 
         if (!authHeader) {
+            console.log('[JwtAuthGuard] ❌ No authorization header');
             throw new UnauthorizedException('No authorization header');
         }
 
         const [type, token] = authHeader.split(' ');
+        console.log(`[JwtAuthGuard] Type: ${type}, Token length: ${token?.length || 0}`);
 
         if (type !== 'Bearer' || !token) {
+            console.log('[JwtAuthGuard] ❌ Invalid format');
             throw new UnauthorizedException('Invalid authorization header format');
         }
 
         try {
             const payload = this.jwtService.verify(token);
+            console.log(`[JwtAuthGuard] ✅ Verified, userId: ${payload.userId?.substring(0, 8)}...`);
             request.user = payload;
             return true;
-        } catch {
+        } catch (err) {
+            console.log(`[JwtAuthGuard] ❌ Token verify failed: ${err.message}`);
             throw new UnauthorizedException('Invalid token');
         }
     }

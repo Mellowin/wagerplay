@@ -49,6 +49,19 @@ export class User {
   @Column({ type: 'timestamp', nullable: true })
   lastAdminActivity: Date | null; // Последняя активность админа
 
+  // 🚫 Ban system
+  @Column({ type: 'boolean', default: false })
+  isBanned: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  banReason: string | null;
+
+  @Column({ type: 'uuid', nullable: true })
+  bannedBy: string | null; // ID админа который забанил
+
+  @Column({ type: 'timestamp', nullable: true })
+  bannedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

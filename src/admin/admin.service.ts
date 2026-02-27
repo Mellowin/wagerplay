@@ -11,6 +11,8 @@ export interface UserListItem {
     email: string | null;
     displayName: string | null;
     isGuest: boolean;
+    isBanned: boolean;
+    banReason: string | null;
     balanceWp: number;
     frozenWp: number;
     createdAt: Date;
@@ -121,6 +123,8 @@ export class AdminService {
                 email: user.email,
                 displayName: user.displayName,
                 isGuest: !user.email,
+                isBanned: user.isBanned,
+                banReason: user.banReason,
                 balanceWp: user.wallet?.balanceWp || 0,
                 frozenWp: user.wallet?.frozenWp || 0,
                 createdAt: user.createdAt,
@@ -224,13 +228,12 @@ export class AdminService {
         };
     }
 
-    // 🚫 Заблокировать/разблокировать пользователя
-    async toggleUserBan(
+    // 🚫 Забанить пользователя
+    async banUser(
         adminId: string,
         targetUserId: string,
-        banned: boolean,
-        reason?: string,
-    ): Promise<{ success: boolean; userId: string; banned: boolean }> {
+        reason: string,
+    ): Promise<{ success: boolean; userId: string; isBanned: boolean; reason: string }> {
         const user = await this.userRepo.findOne({
             where: { id: targetUserId },
         });
@@ -239,19 +242,73 @@ export class AdminService {
             throw new NotFoundException('User not found');
         }
 
-        // Здесь можно добавить поле isBanned в сущность User
-        // Пока просто логируем
+        if (user.isBanned) {
+            throw new BadRequestException('User is already banned');
+        }
+
+        // Устанавливаем бан
+        user.isBanned = true;
+        user.banReason = reason;
+        user.bannedBy = adminId;
+        user.bannedAt = new Date();
+        await this.userRepo.save(user);
+
+        // Логируем в audit
         await this.audit.log({
-            eventType: banned ? 'ADMIN_USER_BAN' : 'ADMIN_USER_UNBAN',
+            eventType: 'ADMIN_USER_BAN',
             matchId: null,
             actorId: adminId,
-            payload: { targetUserId, reason, adminId },
+            payload: { targetUserId, reason, bannedAt: user.bannedAt },
         });
+
+        console.log(`[Admin] User ${targetUserId.slice(0, 8)} banned by ${adminId.slice(0, 8)}. Reason: ${reason}`);
 
         return {
             success: true,
             userId: targetUserId,
-            banned,
+            isBanned: true,
+            reason,
+        };
+    }
+
+    // ✅ Разбанить пользователя
+    async unbanUser(
+        adminId: string,
+        targetUserId: string,
+    ): Promise<{ success: boolean; userId: string; isBanned: boolean }> {
+        const user = await this.userRepo.findOne({
+            where: { id: targetUserId },
+        });
+
+        if (!user) {
+            throw new NotFoundException('User not found');
+        }
+
+        if (!user.isBanned) {
+            throw new BadRequestException('User is not banned');
+        }
+
+        // Снимаем бан
+        user.isBanned = false;
+        user.banReason = null;
+        user.bannedBy = null;
+        user.bannedAt = null;
+        await this.userRepo.save(user);
+
+        // Логируем в audit
+        await this.audit.log({
+            eventType: 'ADMIN_USER_UNBAN',
+            matchId: null,
+            actorId: adminId,
+            payload: { targetUserId, unbannedAt: new Date() },
+        });
+
+        console.log(`[Admin] User ${targetUserId.slice(0, 8)} unbanned by ${adminId.slice(0, 8)}`);
+
+        return {
+            success: true,
+            userId: targetUserId,
+            isBanned: false,
         };
     }
 }

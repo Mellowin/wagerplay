@@ -319,6 +319,17 @@
             box-shadow: 0 6px 20px rgba(17,153,142,0.6);
         }
 
+        .btn-danger {
+            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255,75,43,0.4);
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255,75,43,0.6);
+        }
+
         .btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
@@ -5855,6 +5866,7 @@
                             <th style="padding: 10px; text-align: left;">ID</th>
                             <th style="padding: 10px; text-align: left;">Email/Имя</th>
                             <th style="padding: 10px; text-align: right;">Баланс</th>
+                            <th style="padding: 10px; text-align: center;">Статус</th>
                             <th style="padding: 10px; text-align: center;">Действия</th>
                         </tr>
                     </thead>
@@ -5863,21 +5875,37 @@
             
             users.forEach(user => {
                 const displayName = user.displayName || user.email || `Guest ${user.id.slice(0,8)}`;
+                const banStatus = user.isBanned 
+                    ? `<span style="color: #ff4757; font-weight: bold;">🚫 Забанен</span>` 
+                    : '<span style="color: #38ef7d;">✅ Активен</span>';
+                const banButton = user.isBanned
+                    ? `<button onclick="unbanUser('${user.id}', '${displayName}')" 
+                            class="btn btn-success" style="padding: 5px 10px; font-size: 0.85em; margin-left: 5px;">
+                        ✅ Разбан
+                    </button>`
+                    : `<button onclick="showBanModal('${user.id}', '${displayName}')" 
+                            class="btn btn-danger" style="padding: 5px 10px; font-size: 0.85em; margin-left: 5px;">
+                        🚫 Бан
+                    </button>`;
+                
                 html += `
-                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); ${user.isBanned ? 'background: rgba(255,71,87,0.1);' : ''}">
                         <td style="padding: 10px; font-family: monospace; font-size: 0.85em;">${user.id.slice(0,8)}...</td>
                         <td style="padding: 10px;">
                             ${user.isGuest ? '👤 ' : ''}${displayName}
+                            ${user.isBanned && user.banReason ? `<br><small style="color: #ff4757;">Причина: ${escapeHtml(user.banReason)}</small>` : ''}
                         </td>
                         <td style="padding: 10px; text-align: right;">
                             ${user.balanceWp.toLocaleString()} VP
                             ${user.frozenWp > 0 ? `<small style="color: #ffd700;">(${user.frozenWp} заморожено)</small>` : ''}
                         </td>
+                        <td style="padding: 10px; text-align: center;">${banStatus}</td>
                         <td style="padding: 10px; text-align: center;">
                             <button onclick="selectUserForBalance('${user.id}', '${displayName}', ${user.balanceWp})" 
                                     class="btn btn-primary" style="padding: 5px 10px; font-size: 0.85em;">
                                 💰 Баланс
                             </button>
+                            ${banButton}
                         </td>
                     </tr>
                 `;
@@ -5951,6 +5979,75 @@
                 }
             } catch (e) {
                 console.error('updateUserBalance error:', e);
+                showToast('error', 'Ошибка сети');
+            }
+        }
+        
+        // 🚫 Функции для бана/разбана
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showBanModal(userId, displayName) {
+            const reason = prompt(`🚫 Бан пользователя: ${displayName}\n\nВведите причину бана:`);
+            if (reason && reason.trim()) {
+                banUser(userId, displayName, reason.trim());
+            }
+        }
+        
+        async function banUser(userId, displayName, reason) {
+            try {
+                const response = await fetch(`${API_URL}/admin/users/ban`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ userId, reason })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast('success', `Пользователь ${displayName} забанен`);
+                    loadAdminUsers(adminCurrentPage); // Обновить список
+                } else {
+                    showToast('error', result.message || 'Ошибка бана');
+                }
+            } catch (e) {
+                console.error('banUser error:', e);
+                showToast('error', 'Ошибка сети');
+            }
+        }
+        
+        async function unbanUser(userId, displayName) {
+            if (!confirm(`✅ Разбанить пользователя: ${displayName}?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/users/unban`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ userId })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast('success', `Пользователь ${displayName} разбанен`);
+                    loadAdminUsers(adminCurrentPage); // Обновить список
+                } else {
+                    showToast('error', result.message || 'Ошибка разбана');
+                }
+            } catch (e) {
+                console.error('unbanUser error:', e);
                 showToast('error', 'Ошибка сети');
             }
         }
