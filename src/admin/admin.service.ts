@@ -92,28 +92,41 @@ export class AdminService {
             };
         }
 
-        // Проверка таймаута сессии
-        if (user.lastAdminActivity) {
-            const inactiveTime = Date.now() - new Date(user.lastAdminActivity).getTime();
-            console.log(`[AdminService] inactiveTime: ${inactiveTime}ms (${Math.round(inactiveTime / 60000)} min)`);
-            console.log(`[AdminService] timeoutMs: ${timeoutMs}ms (${Math.round(timeoutMs / 60000)} min)`);
+        // 🛡️ Проверка таймаута сессии (используем lastAdminActivityMs - Unix timestamp)
+        if (user.lastAdminActivityMs) {
+            const now = Date.now();
+            const inactiveTime = now - user.lastAdminActivityMs;
+            
+            console.log(`[AdminService] now: ${now}, lastActivity: ${user.lastAdminActivityMs}, inactive: ${inactiveTime}ms`);
+            
             if (inactiveTime > timeoutMs) {
-                console.log(`[AdminService] ERROR: Session expired`);
+                const inactiveMinutes = Math.round(inactiveTime / 60000);
+                const timeoutMinutes = Math.round(timeoutMs / 60000);
+                console.log(`[AdminService] ERROR: Session expired (${inactiveMinutes}min > ${timeoutMinutes}min)`);
                 return { 
                     isValid: false, 
-                    error: `Session expired due to inactivity (${Math.round(inactiveTime / 60000)} min)` 
+                    error: `Session expired due to inactivity (${inactiveMinutes}min)` 
                 };
             }
-        } else {
-            console.log(`[AdminService] No lastAdminActivity, first login`);
         }
 
-        // Обновляем время последней активности
-        user.lastAdminActivity = new Date();
+        // ✅ Обновляем время последней активности (Unix ms)
+        user.lastAdminActivityMs = Date.now();
         await this.userRepo.save(user);
-        console.log(`[AdminService] Session validated successfully`);
+        console.log(`[AdminService] Session extended to ${user.lastAdminActivityMs}`);
 
         return { isValid: true };
+    }
+
+    // 🔍 Получить пользователя по ID
+    async getUserById(userId: string): Promise<User | null> {
+        return this.userRepo.findOne({ where: { id: userId } });
+    }
+
+    // ⏱️ Продлить сессию (без проверки таймаута)
+    async extendSession(userId: string): Promise<void> {
+        await this.userRepo.update(userId, { lastAdminActivityMs: Date.now() });
+        console.log(`[AdminService] Session extended for ${userId.slice(0, 8)}`);
     }
 
     // 📝 Получить список пользователей с пагинацией

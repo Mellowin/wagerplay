@@ -3437,6 +3437,10 @@
                 console.log('[window.onload] Restored selectedStake:', selectedStake);
             }
             
+            // 🖱️ Запускаем отслеживание активности (для продления админской сессии)
+            if (token) {
+                setupActivityTracking();
+            }
             // Initialize button text with saved (or default) values
             const btnText = document.getElementById('playBtnText');
             const stakeText = selectedStake >= 1000 ? (selectedStake/1000) + 'K' : selectedStake;
@@ -5828,6 +5832,37 @@
         
         // 🔄 Авто-пинг админской сессии (каждые 5 минут)
         let adminPingInterval = null;
+        
+        // 🖱️ Продление сессии при любой активности
+        let lastActivityPing = 0;
+        const ACTIVITY_PING_INTERVAL = 30 * 1000; // минимум 30 сек между пингами
+        
+        async function pingActivity() {
+            const now = Date.now();
+            if (now - lastActivityPing < ACTIVITY_PING_INTERVAL) return; // дебаунс
+            
+            lastActivityPing = now;
+            try {
+                const response = await fetch(`${API_URL}/admin/activity`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    console.log('[ActivityPing] Session extended via activity');
+                }
+            } catch (e) {
+                // молча игнорируем ошибки
+            }
+        }
+        
+        function setupActivityTracking() {
+            // Отслеживаем любую активность на странице
+            document.addEventListener('click', pingActivity, true);
+            document.addEventListener('keydown', pingActivity, true);
+            document.addEventListener('mousemove', pingActivity, true);
+            document.addEventListener('scroll', pingActivity, true);
+            console.log('[ActivityPing] Tracking setup');
+        }
         
         async function pingAdminSession() {
             try {

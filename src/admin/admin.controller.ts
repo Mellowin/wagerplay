@@ -19,8 +19,8 @@ const ADMIN_EMAILS = [
     'osanamyan@ukr.net',
 ];
 
-// ⏱️ Таймаут админской сессии (8 часов - авто-продление при активности)
-const ADMIN_SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000;
+// ⏱️ Таймаут админской сессии (30 минут)
+const ADMIN_SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -217,5 +217,37 @@ export class AdminController {
     ) {
         await this.checkAdmin(auth, clientIp);
         return { success: true, message: 'Session extended' };
+    }
+
+    @ApiOperation({ 
+        summary: 'Activity ping', 
+        description: 'Extend admin session on any user activity. Does NOT check timeout.' 
+    })
+    @ApiResponse({ status: 200, description: 'Session extended' })
+    @ApiResponse({ status: 403, description: 'Admin access required' })
+    @Post('activity')
+    async activityPing(
+        @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
+    ) {
+        // Проверяем админа без проверки таймаута
+        const adminId = getUserIdFromToken(auth);
+        if (!adminId) {
+            throw new BadRequestException('Unauthorized');
+        }
+        
+        const user = await this.adminService.getUserById(adminId);
+        if (!user || !user.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+            throw new BadRequestException('Admin access required');
+        }
+        
+        // Проверяем IP
+        if (user.adminIp && user.adminIp !== clientIp) {
+            throw new BadRequestException('IP mismatch');
+        }
+        
+        // Продлеваем сессию
+        await this.adminService.extendSession(adminId);
+        return { success: true, message: 'Session extended via activity' };
     }
 }

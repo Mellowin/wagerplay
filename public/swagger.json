@@ -1145,6 +1145,72 @@
         ]
       }
     },
+    "/admin/ping": {
+      "post": {
+        "description": "Keep admin session alive. Call every 5 minutes while admin panel is open.",
+        "operationId": "AdminController_pingSession",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session extended"
+          },
+          "403": {
+            "description": "Admin access required"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Ping admin session",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
+    "/admin/activity": {
+      "post": {
+        "description": "Extend admin session on any user activity. Does NOT check timeout.",
+        "operationId": "AdminController_activityPing",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session extended"
+          },
+          "403": {
+            "description": "Admin access required"
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Activity ping",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/leaderboard": {
       "get": {
         "description": "Returns top players sorted by specified category",

@@ -1188,6 +1188,13 @@ export class MatchmakingService {
         }
         playerIds.push(...botIds);
 
+        // ✅ Генерируем имена для ботов
+        const botNames = this.getRandomBotNames(botsNeeded);
+        const botNamesMap: Record<string, string> = {};
+        botIds.forEach((id, i) => {
+            botNamesMap[id] = botNames[i];
+        });
+
         // ✅ UPDATED: добавили aliveIds/eliminatedIds/moves
         const potVp = stakeVp * playersCount;
         const feeRate = 0.05;
@@ -1215,6 +1222,7 @@ export class MatchmakingService {
             aliveIds: [...playerIds],  // теперь включает и ботов
             eliminatedIds: [],
             playerNames,  // 👤 Добавляем имена игроков
+            botNames: botNamesMap,  // 🤖 Добавляем имена ботов
             createdAt: Date.now(),
             status: 'READY',
             round: 1,

@@ -47,7 +47,10 @@ export class User {
   adminIp: string | null; // IP с которого первый раз зашёл админ
 
   @Column({ type: 'timestamp', nullable: true })
-  lastAdminActivity: Date | null; // Последняя активность админа
+  lastAdminActivity: Date | null; // Последняя активность админа (устарело)
+
+  @Column({ type: 'bigint', nullable: true })
+  lastAdminActivityMs: number | null; // Последняя активность админа (Unix ms) - фикс timezone
 
   // 🚫 Ban system
   @Column({ type: 'boolean', default: false })

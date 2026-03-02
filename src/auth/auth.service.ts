@@ -402,12 +402,67 @@ export class AuthService {
     };
   }
 
+  // Слова для генерации крутых ников
+  private readonly GUEST_ADJECTIVES = [
+    'Cool', 'Fast', 'Lucky', 'Crazy', 'Mega', 'Super', 'Wild', 'Epic',
+    'Dark', 'Fire', 'Ice', 'Shadow', 'Golden', 'Silver', 'Royal', 'Swift',
+    'Brave', 'Clever', 'Fierce', 'Mighty', 'Noble', 'Proud', 'Sneaky', 'Wise',
+    'Silent', 'Stormy', 'Thunder', 'Lightning', 'Iron', 'Steel', 'Crystal', 'Magic',
+    'Ghost', 'Hidden', 'Secret', 'Mystic', 'Ancient', 'Cosmic', 'Solar', 'Lunar'
+  ];
+
+  private readonly GUEST_NOUNS = [
+    'Tiger', 'Dragon', 'Wolf', 'Eagle', 'Shark', 'Bear', 'Lion', 'Panther',
+    'Ninja', 'Samurai', 'Knight', 'Wizard', 'Hero', 'Master', 'King', 'Queen',
+    'Hunter', 'Warrior', 'Pilot', 'Racer', 'Gamer', 'Legend', 'Phantom', 'Storm',
+    'Rider', 'Blade', 'Arrow', 'Shield', 'Hammer', 'Viper', 'Raven', 'Falcon',
+    'Cobra', 'Bison', 'Jaguar', 'Cheetah', 'Puma', 'Hawk', 'Owl', 'Fox'
+  ];
+
+  // Генерация уникального ника для гостя
+  private async generateUniqueGuestName(): Promise<{ username: string; displayName: string }> {
+    let attempts = 0;
+    const maxAttempts = 20;
+    
+    while (attempts < maxAttempts) {
+      const adj = this.GUEST_ADJECTIVES[Math.floor(Math.random() * this.GUEST_ADJECTIVES.length)];
+      const noun = this.GUEST_NOUNS[Math.floor(Math.random() * this.GUEST_NOUNS.length)];
+      const num = Math.floor(Math.random() * 100); // 00-99
+      
+      const username = `${adj}${noun}${num}`;
+      const displayName = `${adj} ${noun} ${num}`;
+      
+      // Проверяем, есть ли такой ник в базе
+      const existing = await this.usersRepo.findOne({ 
+        where: { username } 
+      });
+      
+      if (!existing) {
+        return { username, displayName }; // Уникальный - возвращаем
+      }
+      
+      attempts++;
+      console.log(`[Guest Login] Nickname ${username} taken, attempt ${attempts}/${maxAttempts}`);
+    }
+    
+    // Если не нашли уникальный - используем UUID часть + timestamp
+    const timestamp = Date.now().toString(36).slice(-4).toUpperCase();
+    const randomPart = Math.random().toString(36).substring(2, 5).toUpperCase();
+    const username = `Player${timestamp}${randomPart}`;
+    const displayName = `Player ${timestamp}${randomPart}`;
+    
+    console.log(`[Guest Login] Using fallback name: ${username}`);
+    return { username, displayName };
+  }
+
   // Guest login (оставляем для быстрого входа)
   async guestLogin() {
-    const guestNumber = Math.floor(Math.random() * 10000);
+    // Генерируем уникальный ник
+    const { username, displayName } = await this.generateUniqueGuestName();
+    
     const user = this.usersRepo.create({
-      username: `Guest${guestNumber}`,
-      displayName: `Guest${guestNumber}`,
+      username,
+      displayName,
       isGuest: true,
       gender: null,
       avatarUrl: null,
