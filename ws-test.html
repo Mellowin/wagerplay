@@ -3831,7 +3831,7 @@
                 // Сохраняем displayName для F5 recovery
                 localStorage.setItem('displayName', guestDisplayName);
                 updateBalanceDisplay(j.balanceWp);
-                log(`✅ Guest login: ${userId.slice(0,8)}...`);
+                log(`✅ Guest login: ${guestDisplayName}`);
                 setButtons({ showAuth: false, showUser: true, showConnect: true, connect: true, quickplay: false, balance: true, logs: false });
                 updateUserInfoAfterLogin();
                 updateWaitingText();
