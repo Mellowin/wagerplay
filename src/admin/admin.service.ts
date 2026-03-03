@@ -379,7 +379,21 @@ export class AdminService {
 
     // 🧪 Расчет тестового сценария матча
     async calculateTestScenario(playerIds: string[], stakeVp: number, scenario: 'pvp' | 'pvb' | 'mixed') {
-        const players = [];
+        interface PlayerInfo {
+            id: string;
+            name: string;
+            currentBalance: number;
+            currentFrozen: number;
+        }
+        interface ScenarioResult {
+            player: string;
+            currentBalance: number;
+            frozen: number;
+            ifWins: { balance: number; change: number; profit: number };
+            ifLoses: { balance: number; change: number; profit: number };
+        }
+        
+        const players: PlayerInfo[] = [];
         let totalPlayers = playerIds.length;
         let botCount = 0;
         
@@ -411,14 +425,14 @@ export class AdminService {
         const payout = totalPot - houseFee;
         
         // Сценарии результатов
-        const scenarios = [];
+        const scenarios: ScenarioResult[] = [];
         
         // Сценарий 1: Первый игрок побеждает
         const winnerGets = payout;
         const loserLoses = stakeVp;
         
         for (let i = 0; i < players.length; i++) {
-            const p = players[i];
+            const p = players[i] as PlayerInfo;
             const isWinner = i === 0;
             
             scenarios.push({
