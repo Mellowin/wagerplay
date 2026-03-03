@@ -807,7 +807,14 @@ export class MatchmakingService {
             
             this.scheduleTimeout(() => this.tryAssembleMatch(playersCount, stakeVp, false), 100);
             
-            return { status: 'QUEUED', ticketId: ticket.ticketId };
+            // 🆕 Вычисляем secondsLeft от времени первого тикета
+            const firstTicketId = await this.redis.lrange(q, 0, 1);
+            const firstTicket = firstTicketId.length > 0 ? await this.getTicket(firstTicketId[0]) : null;
+            const queueStartTime = firstTicket ? firstTicket.createdAt : Date.now();
+            const queueTime = Math.floor((Date.now() - queueStartTime) / 1000);
+            const secondsLeft = Math.max(0, 20 - queueTime);
+            
+            return { status: 'IN_QUEUE', ticketId: ticket.ticketId, secondsLeft };
         } finally {
             await this.redis.del(lockKey);
         }

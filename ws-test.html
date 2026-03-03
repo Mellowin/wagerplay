@@ -3966,7 +3966,9 @@
                     return;
                 }
                 if (m.ticketId) {
-                    showWaiting(t('waitingQueue'), true, 20);  // 20 секунд на поиск
+                    const initialSeconds = m.secondsLeft || 20;  // Используем secondsLeft от сервера или 20 по умолчанию
+                    console.log(`[quickplay:result] Starting countdown with secondsLeft: ${initialSeconds}`);
+                    showWaiting(t('waitingQueue'), true, initialSeconds);
                     // Keep button disabled while in queue
                     const qpBtn2 = document.getElementById('btnQuickplay');
                     const pbt2 = document.getElementById('playBtnText');
