@@ -1241,6 +1241,36 @@
         ]
       }
     },
+    "/admin/test-scenarios": {
+      "post": {
+        "description": "Calculate expected balances for different match scenarios",
+        "operationId": "AdminController_testScenarios",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Test match scenarios",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/leaderboard": {
       "get": {
         "description": "Returns top players sorted by specified category",
