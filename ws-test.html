@@ -3967,7 +3967,6 @@
                 }
                 if (m.ticketId) {
                     const initialSeconds = m.secondsLeft || 20;  // Используем secondsLeft от сервера или 20 по умолчанию
-                    console.log(`[quickplay:result] Starting countdown with secondsLeft: ${initialSeconds}`);
                     showWaiting(t('waitingQueue'), true, initialSeconds);
                     // Keep button disabled while in queue
                     const qpBtn2 = document.getElementById('btnQuickplay');
@@ -4006,9 +4005,7 @@
                 
                 log(`🔄 Синхронизация: ${m.playersFound}/${m.totalNeeded} игроков, осталось ${m.secondsLeft}сек`);
                 // 🛑 Останавливаем старый таймер перед запуском нового
-                console.log(`[queue:sync] BEFORE stopCountdown - countdownInterval: ${countdownInterval}`);
                 stopCountdown();
-                console.log(`[queue:sync] AFTER stopCountdown - will call showWaiting with seconds=${m.secondsLeft}`);
                 // Обновляем UI с синхронизированным временем
                 showWaiting(`Ищем соперников (${m.playersFound}/${m.totalNeeded})...`, true, m.secondsLeft);
             });
@@ -4080,8 +4077,6 @@
 
             // 🎮 МАТЧ НАЙДЕН! - показываем экран с отсчётом
             socket.on("match:found", (data) => {
-                console.log(`[CLIENT match:found] RECEIVED:`, JSON.stringify(data));
-                console.log(`[CLIENT match:found] data.countdown=${data.countdown}, data.mode=${data.mode}, data.createdAt=${data.createdAt}`);
                 showToast('success', t('matchFound') || 'Матч найден!', t('gameStarting') || 'Игра начинается...');
                 
                 // 🧹 Очищаем таймер поиска (при F5 восстановлении)
@@ -4107,8 +4102,6 @@
                 
                 // 🔄 При RECONNECT используем countdown от сервера, иначе 5
                 const initialCount = (data.mode === 'RECONNECT' && data.countdown) ? data.countdown : 5;
-                console.log(`[CLIENT match:found] CALCULATED initialCount=${initialCount} (mode=${data.mode}, countdown=${data.countdown})`);
-                console.log(`[CLIENT match:found] Using countdown: ${initialCount}s, server said: ${data.countdown}s`);
                 console.log(`[match:found] Starting countdown: ${initialCount}s (mode: ${data.mode || 'normal'})`);
                 
                 // Показываем экран ожидания с большим таймером
@@ -4545,11 +4538,7 @@
 
         // Countdown Timer
         function startCountdown(seconds) {
-            console.log(`[TIMER] startCountdown: starting with ${seconds}s`);
-            if (countdownInterval) {
-                console.log('[TIMER] startCountdown: clearing existing interval');
-                clearInterval(countdownInterval);
-            }
+            if (countdownInterval) clearInterval(countdownInterval);
             let remaining = seconds;
             
             const updateTimer = () => {
@@ -4570,11 +4559,8 @@
 
         function stopCountdown() {
             if (countdownInterval) {
-                console.log('[TIMER] stopCountdown: clearing interval');
                 clearInterval(countdownInterval);
                 countdownInterval = null;
-            } else {
-                console.log('[TIMER] stopCountdown: no active interval');
             }
         }
 
@@ -4715,7 +4701,6 @@
 
         // Render Functions
         function showWaiting(text, withCountdown = false, seconds = 0) {
-            console.log(`[TIMER] showWaiting called: text="${text.substring(0,30)}...", withCountdown=${withCountdown}, seconds=${seconds}`);
             let countdownHtml = '';
             if (withCountdown && seconds > 0) {
                 countdownHtml = `<div id="countdownTimer" style="font-size: 1.5em; margin-top: 10px; color: #ffd700;"></div>`;

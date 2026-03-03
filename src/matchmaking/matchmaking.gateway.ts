@@ -94,7 +94,6 @@ export class MatchmakingGateway {
         if (elapsedSec < 5) {
           const remainingSec = 5 - elapsedSec;
           console.log(`[Gateway] User ${userId.slice(0,8)} reconnected during countdown (${remainingSec}s left)`);
-          console.log(`[Gateway] RECONNECT match:found -> ${userId.slice(0,8)}: countdown=${remainingSec}, createdAt=${match.createdAt}, now=${Date.now()}`);
           
           socket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'RECONNECT', createdAt: match.createdAt });
           
@@ -161,7 +160,7 @@ export class MatchmakingGateway {
       console.log(`[Gateway] User ${userId.slice(0,8)} in queue, ${queueLen}/${body.playersCount} players, ${secondsLeft}s left`);
 
       // ⏱️ Запускаем fallback через secondsLeft секунд (20 сек по умолчанию)
-      console.log(`[Gateway] Scheduling fallback in ${secondsLeft}s for ticket ${res.ticketId.slice(0,8)}`);
+
       setTimeout(async () => {
         console.log(`[Gateway] Fallback timer fired for ticket ${res.ticketId.slice(0,8)}`);
         try {
@@ -309,7 +308,7 @@ export class MatchmakingGateway {
         ...m,
         createdAt: m.createdAt || Date.now() // Запасной вариант
       };
-      console.log(`[Gateway] match:get for ${body.matchId.slice(0,8)}, createdAt: ${matchWithCreated.createdAt}, elapsed: ${Date.now() - matchWithCreated.createdAt}ms`);
+
       socket.emit('match:get', matchWithCreated);
     } else {
       socket.emit('match:get', null);

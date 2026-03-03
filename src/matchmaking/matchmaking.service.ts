@@ -862,7 +862,7 @@ export class MatchmakingService {
                         const queueTime = Math.floor((Date.now() - queueStartTime) / 1000);
                         const secondsLeft = Math.max(0, 20 - queueTime);
                         const playersFound = ticketIds.length;
-                        console.log(`[findUserTicket] User ${userId.slice(0,8)}: queueTime=${queueTime}s, secondsLeft=${secondsLeft}s, firstTicket=${firstTicket?.userId.slice(0,8)}`);
+
                         return { ticket, queueKey: q, playersFound, secondsLeft };
                     }
                 }
@@ -887,7 +887,7 @@ export class MatchmakingService {
 
     // 🔄 Проверяет есть ли пользователь в очереди или активном матче
     async getUserActiveState(userId: string): Promise<{ inQueue: boolean; queueTime?: number; playersFound?: number; totalNeeded?: number; secondsLeft?: number; activeMatch?: Match }> {
-        console.log(`[getUserActiveState] Checking user: ${userId.slice(0, 8)}...`);
+
         
         // 1. Проверяем все очереди на наличие тикета пользователя
         for (const playersCount of ALLOWED_PLAYERS) {
@@ -896,7 +896,7 @@ export class MatchmakingService {
                 const ticketIds = await this.redis.lrange(q, 0, -1);
                 
                 if (ticketIds.length > 0) {
-                    console.log(`[getUserActiveState] Queue ${q}: ${ticketIds.length} tickets`);
+
                 }
                 
                 // Берем createdAt первого тикета в очереди (время начала очереди)
@@ -912,12 +912,7 @@ export class MatchmakingService {
                         const playersFound = ticketIds.length;
                         const totalNeeded = playersCount;
                         
-                        console.log(`[getUserActiveState] FOUND user in queue:`);
-                        console.log(`  - queueKey: ${q}`);
-                        console.log(`  - playersFound: ${playersFound}/${totalNeeded}`);
-                        console.log(`  - queueTime: ${queueTime}s (from first ticket: ${new Date(queueStartTime).toISOString()})`);
-                        console.log(`  - secondsLeft: ${secondsLeft}s`);
-                        console.log(`  - user joined: ${new Date(ticket.createdAt).toISOString()}`);
+
                         
                         return { inQueue: true, queueTime, playersFound, totalNeeded, secondsLeft };
                     }
@@ -1280,7 +1275,7 @@ export class MatchmakingService {
             const elapsedSec = Math.floor((now - matchCreatedAt) / 1000);
             const remainingSec = Math.max(1, 5 - elapsedSec);
             
-            console.log(`[SERVER] Match ${match.matchId.slice(0,8)} created at ${matchCreatedAt}, now: ${now}, elapsed: ${elapsedSec}s, remaining: ${remainingSec}s`);
+
             
             for (const pid of realPlayerIds) {
                 const sockets = await this.server.fetchSockets();
@@ -1290,7 +1285,7 @@ export class MatchmakingService {
                     // 1. Отправляем match:ready
                     playerSocket.emit('match:ready', { matchId: match.matchId });
                     // 2. Отправляем match:found с отсчётом
-                    console.log(`[SERVER] Sending match:found to ${pid.slice(0,8)} with countdown: ${remainingSec}s (mode: PVP)`);
+
                     playerSocket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'PVP', createdAt: matchCreatedAt });
                 }
             }
@@ -1311,15 +1306,15 @@ export class MatchmakingService {
                 const startLockKey = `match:startlock:${match.matchId}`;
                 const startLock = await this.redis.set(startLockKey, '1', 'EX', 10, 'NX');
                 if (!startLock) {
-                    console.log(`[SERVER] Match ${match.matchId.slice(0,8)} start already in progress, skipping duplicate`);
+
                     return;
                 }
                 
                 try {
-                    console.log(`[SERVER] === MATCH STARTING: ${match.matchId.slice(0,8)} ===`);
+
                     
                     // Сначала запускаем таймер (устанавливает moveDeadline в матч и отправляет match:timer)
-                    console.log(`[SERVER] Calling startMoveTimer for ${match.matchId.slice(0,8)}`);
+
                     await this.startMoveTimer(match.matchId, 12);
                     
                     // Получаем обновлённый матч с moveDeadline
@@ -1327,17 +1322,17 @@ export class MatchmakingService {
                     
                     // 🛡️ Проверяем что таймер действительно установился
                     if (!m?.moveDeadline) {
-                        console.log(`[SERVER] No deadline after startMoveTimer, skipping emit`);
+
                         return;
                     }
                     
                     if (m && this.server) {
-                        console.log(`[SERVER] Emitting match:start + match:update for ${match.matchId.slice(0,8)}`);
+
                         const matchWithDeadline = { ...m, deadline: m.moveDeadline };
                         this.server.to(matchRoom).emit('match:start', matchWithDeadline);
                         this.server.to(matchRoom).emit('match:update', matchWithDeadline);
                         // match:timer уже отправлен в startMoveTimer!
-                        console.log(`[SERVER] === MATCH STARTED: ${match.matchId.slice(0,8)} ===`);
+
                     }
                 } finally {
                     await this.redis.del(startLockKey);
