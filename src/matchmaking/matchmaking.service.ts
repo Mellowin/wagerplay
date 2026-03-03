@@ -838,12 +838,17 @@ export class MatchmakingService {
                 // Используем lrange с ограничением для производительности
                 const ticketIds = await this.redis.lrange(q, 0, 99);
                 
+                // Берем createdAt первого тикета в очереди (время начала очереди)
+                const firstTicket = ticketIds.length > 0 ? await this.getTicket(ticketIds[0]) : null;
+                const queueStartTime = firstTicket ? firstTicket.createdAt : Date.now();
+                
                 for (const tId of ticketIds) {
                     const ticket = await this.getTicket(tId);
                     if (ticket && ticket.userId === userId) {
-                        const queueTime = Math.floor((Date.now() - ticket.createdAt) / 1000);
+                        const queueTime = Math.floor((Date.now() - queueStartTime) / 1000);
                         const secondsLeft = Math.max(0, 20 - queueTime);
                         const playersFound = ticketIds.length;
+                        console.log(`[findUserTicket] User ${userId.slice(0,8)}: queueTime=${queueTime}s, secondsLeft=${secondsLeft}s, firstTicket=${firstTicket?.userId.slice(0,8)}`);
                         return { ticket, queueKey: q, playersFound, secondsLeft };
                     }
                 }
@@ -880,11 +885,15 @@ export class MatchmakingService {
                     console.log(`[getUserActiveState] Queue ${q}: ${ticketIds.length} tickets`);
                 }
                 
+                // Берем createdAt первого тикета в очереди (время начала очереди)
+                const firstTicket = await this.getTicket(ticketIds[0]);
+                const queueStartTime = firstTicket ? firstTicket.createdAt : Date.now();
+                
                 for (const tId of ticketIds) {
                     const ticket = await this.getTicket(tId);
                     if (ticket && ticket.userId === userId) {
                         const now = Date.now();
-                        const queueTime = Math.floor((now - ticket.createdAt) / 1000);
+                        const queueTime = Math.floor((now - queueStartTime) / 1000);
                         const secondsLeft = Math.max(0, 20 - queueTime);
                         const playersFound = ticketIds.length;
                         const totalNeeded = playersCount;
@@ -892,8 +901,9 @@ export class MatchmakingService {
                         console.log(`[getUserActiveState] FOUND user in queue:`);
                         console.log(`  - queueKey: ${q}`);
                         console.log(`  - playersFound: ${playersFound}/${totalNeeded}`);
-                        console.log(`  - queueTime: ${queueTime}s`);
+                        console.log(`  - queueTime: ${queueTime}s (from first ticket: ${new Date(queueStartTime).toISOString()})`);
                         console.log(`  - secondsLeft: ${secondsLeft}s`);
+                        console.log(`  - user joined: ${new Date(ticket.createdAt).toISOString()}`);
                         
                         return { inQueue: true, queueTime, playersFound, totalNeeded, secondsLeft };
                     }

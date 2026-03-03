@@ -4004,7 +4004,9 @@
                 
                 log(`🔄 Синхронизация: ${m.playersFound}/${m.totalNeeded} игроков, осталось ${m.secondsLeft}сек`);
                 // 🛑 Останавливаем старый таймер перед запуском нового
+                console.log(`[queue:sync] BEFORE stopCountdown - countdownInterval: ${countdownInterval}`);
                 stopCountdown();
+                console.log(`[queue:sync] AFTER stopCountdown - will call showWaiting with seconds=${m.secondsLeft}`);
                 // Обновляем UI с синхронизированным временем
                 showWaiting(`Ищем соперников (${m.playersFound}/${m.totalNeeded})...`, true, m.secondsLeft);
             });
@@ -4541,7 +4543,11 @@
 
         // Countdown Timer
         function startCountdown(seconds) {
-            if (countdownInterval) clearInterval(countdownInterval);
+            console.log(`[TIMER] startCountdown: starting with ${seconds}s`);
+            if (countdownInterval) {
+                console.log('[TIMER] startCountdown: clearing existing interval');
+                clearInterval(countdownInterval);
+            }
             let remaining = seconds;
             
             const updateTimer = () => {
@@ -4562,8 +4568,11 @@
 
         function stopCountdown() {
             if (countdownInterval) {
+                console.log('[TIMER] stopCountdown: clearing interval');
                 clearInterval(countdownInterval);
                 countdownInterval = null;
+            } else {
+                console.log('[TIMER] stopCountdown: no active interval');
             }
         }
 
@@ -4704,6 +4713,7 @@
 
         // Render Functions
         function showWaiting(text, withCountdown = false, seconds = 0) {
+            console.log(`[TIMER] showWaiting called: text="${text.substring(0,30)}...", withCountdown=${withCountdown}, seconds=${seconds}`);
             let countdownHtml = '';
             if (withCountdown && seconds > 0) {
                 countdownHtml = `<div id="countdownTimer" style="font-size: 1.5em; margin-top: 10px; color: #ffd700;"></div>`;
