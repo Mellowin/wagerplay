@@ -254,6 +254,7 @@ export class MatchmakingService {
 
     // freeze: balance -> frozen (в транзакции с блокировкой)
     private async freezeStake(userId: string, stakeVp: number) {
+        console.log(`[BALANCE] FREEZE START: user=${userId.slice(0,8)}, stake=${stakeVp}`);
         return this.dataSource.transaction(async (manager) => {
             // Блокируем строку FOR UPDATE
             const w = await manager.findOne(Wallet, {
@@ -264,13 +265,19 @@ export class MatchmakingService {
             
             if (!w) throw new BadRequestException('Wallet not found');
 
+            const balanceBefore = w.balanceWp;
+            const frozenBefore = w.frozenWp;
+
             if (w.balanceWp < stakeVp) {
+                console.log(`[BALANCE] FREEZE FAILED: user=${userId.slice(0,8)}, need=${stakeVp}, have=${w.balanceWp}`);
                 throw new BadRequestException(`Not enough balance. Need ${stakeVp}, have ${w.balanceWp}`);
             }
 
             w.balanceWp -= stakeVp;
             w.frozenWp += stakeVp;
             await manager.save(w);
+            
+            console.log(`[BALANCE] FREEZE SUCCESS: user=${userId.slice(0,8)}, stake=${stakeVp}, balance=${balanceBefore}->${w.balanceWp}, frozen=${frozenBefore}->${w.frozenWp}`);
             
             // 📝 Сохраняем в Redis для автоматической очистки
             await this.redis.set(`frozen:${userId}`, JSON.stringify({
@@ -290,6 +297,7 @@ export class MatchmakingService {
 
     // rollback freeze, если что-то пошло не так в сборке матча
     private async unfreezeStake(userId: string, stakeVp: number) {
+        console.log(`[BALANCE] UNFREEZE START: user=${userId.slice(0,8)}, stake=${stakeVp}`);
         return this.dataSource.transaction(async (manager) => {
             const w = await manager.findOne(Wallet, {
                 where: { user: { id: userId } },
@@ -297,11 +305,19 @@ export class MatchmakingService {
                 lock: { mode: 'pessimistic_write' },
             });
             
-            if (!w) return;
+            if (!w) {
+                console.log(`[BALANCE] UNFREEZE FAILED: wallet not found for user=${userId.slice(0,8)}`);
+                return;
+            }
+
+            const balanceBefore = w.balanceWp;
+            const frozenBefore = w.frozenWp;
 
             w.frozenWp = Math.max(0, w.frozenWp - stakeVp);
             w.balanceWp += stakeVp;
             await manager.save(w);
+            
+            console.log(`[BALANCE] UNFREEZE SUCCESS: user=${userId.slice(0,8)}, stake=${stakeVp}, balance=${balanceBefore}->${w.balanceWp}, frozen=${frozenBefore}->${w.frozenWp}`);
             
             // 🧹 Удаляем запись о frozen из Redis
             await this.redis.del(`frozen:${userId}`);
@@ -1553,11 +1569,14 @@ export class MatchmakingService {
         const realPlayers = (m.playerIds || []).filter((id: string) => !this.isBot(id));
 
         // 1) Списываем frozen у реальных игроков (они уже оплатили stake при freeze)
+        console.log(`[BALANCE] SETTLE START: match=${m.matchId.slice(0,8)}, players=${realPlayers.length}, stake=${m.stakeVp}`);
         for (const uid of realPlayers) {
             const w = await this.getWalletByUserId(uid);
             if (w) {
+                const frozenBefore = w.frozenWp;
                 w.frozenWp = Math.max(0, w.frozenWp - m.stakeVp);
                 await this.walletsRepo.save(w);
+                console.log(`[BALANCE] STAKE CONSUMED: user=${uid.slice(0,8)}, stake=${m.stakeVp}, frozen=${frozenBefore}->${w.frozenWp}`);
 
                 await this.audit.log({
                     eventType: 'STAKE_CONSUMED',
@@ -1588,13 +1607,16 @@ export class MatchmakingService {
         }
 
         // 3) Выплата победителю (payout)
+        console.log(`[BALANCE] PAYOUT START: match=${m.matchId.slice(0,8)}, winner=${m.winnerId?.slice(0,8)}, payout=${m.payoutVp}`);
         if (m.winnerId) {
             if (!this.isBot(m.winnerId)) {
                 // победил человек
                 const w = await this.getWalletByUserId(m.winnerId);
                 if (w) {
+                    const balanceBefore = w.balanceWp;
                     w.balanceWp += m.payoutVp;
                     await this.walletsRepo.save(w);
+                    console.log(`[BALANCE] PAYOUT SUCCESS: user=${m.winnerId.slice(0,8)}, payout=${m.payoutVp}, balance=${balanceBefore}->${w.balanceWp}`);
 
                     await this.audit.log({
                         eventType: 'PAYOUT_APPLIED',
@@ -1605,11 +1627,14 @@ export class MatchmakingService {
                 }
             } else {
                 // победил бот — payout уходит HOUSE
+                console.log(`[BALANCE] BOT WIN: payout=${m.payoutVp} goes to HOUSE`);
                 if (houseId && m.payoutVp > 0) {
                     const hw = await this.getWalletByUserId(houseId);
                     if (hw) {
+                        const balanceBefore = hw.balanceWp;
                         hw.balanceWp += m.payoutVp;
                         await this.walletsRepo.save(hw);
+                        console.log(`[BALANCE] HOUSE RECEIVED: payout=${m.payoutVp}, balance=${balanceBefore}->${hw.balanceWp}`);
 
                         await this.audit.log({
                             eventType: 'HOUSE_PAYOUT_WON',

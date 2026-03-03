@@ -947,10 +947,20 @@
             border-bottom: 2px solid var(--card-border);
         }
 
+        .leaderboard-table th:nth-child(1) { width: 50px; text-align: center; }
+        .leaderboard-table th:nth-child(2) { width: auto; }
+        .leaderboard-table th:nth-child(3) { width: 120px; text-align: right; }
+        .leaderboard-table th:nth-child(4) { width: 140px; text-align: right; }
+        }
+
         .leaderboard-table td {
             padding: 12px 8px;
             border-bottom: 1px solid var(--card-border);
         }
+
+        .leaderboard-table td:nth-child(1) { text-align: center; }
+        .leaderboard-table td:nth-child(3) { text-align: right; }
+        .leaderboard-table td:nth-child(4) { text-align: right; }
 
         .leaderboard-table tr:hover {
             background: rgba(255,255,255,0.05);
@@ -3664,6 +3674,11 @@
 
         // Update UI
         function updateBalanceDisplay(balance, frozen = 0) {
+            const oldBalance = parseInt(document.getElementById('balanceDisplay').textContent) || 0;
+            const diff = balance - oldBalance;
+            if (Math.abs(diff) > 0) {
+                console.log(`[FRONT BALANCE] Updated: ${oldBalance} -> ${balance} (diff: ${diff > 0 ? '+' : ''}${diff})`);
+            }
             document.getElementById('balanceDisplay').textContent = `${balance} VP`;
             const frozenEl = document.getElementById('frozenDisplay');
             const isCurrentlyInMatch = activeMatches.size > 0;
