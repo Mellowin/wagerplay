@@ -250,4 +250,16 @@ export class AdminController {
         await this.adminService.extendSession(adminId);
         return { success: true, message: 'Session extended via activity' };
     }
+
+    // 🧪 Тестовый эндпоинт для проверки баланса
+    @ApiOperation({ summary: 'Verify user balance', description: 'Check expected vs actual balance for debugging' })
+    @Post('verify-balance')
+    async verifyBalance(
+        @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
+        @Body() body: { userId: string; expectedBalance: number }
+    ) {
+        await this.checkAdmin(auth, clientIp);
+        return this.adminService.verifyBalance(body.userId, body.expectedBalance);
+    }
 }

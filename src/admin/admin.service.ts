@@ -344,4 +344,36 @@ export class AdminService {
             isBanned: false,
         };
     }
+
+    // 🧪 Проверка баланса для отладки
+    async verifyBalance(userId: string, expectedBalance: number) {
+        const wallet = await this.walletRepo.findOne({
+            where: { user: { id: userId } }
+        });
+        
+        if (!wallet) {
+            throw new NotFoundException('Wallet not found');
+        }
+
+        const actualBalance = wallet.balanceWp;
+        const diff = actualBalance - expectedBalance;
+        
+        // Получаем последние транзакции
+        const recentAudit = await this.audit.getByUser(userId, 10);
+        
+        return {
+            userId,
+            expectedBalance,
+            actualBalance,
+            difference: diff,
+            isCorrect: diff === 0,
+            frozenWp: wallet.frozenWp,
+            recentTransactions: recentAudit.map(a => ({
+                type: a.eventType,
+                matchId: a.matchId,
+                payload: a.payload,
+                createdAt: a.createdAt
+            }))
+        };
+    }
 }

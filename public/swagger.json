@@ -1211,6 +1211,36 @@
         ]
       }
     },
+    "/admin/verify-balance": {
+      "post": {
+        "description": "Check expected vs actual balance for debugging",
+        "operationId": "AdminController_verifyBalance",
+        "parameters": [
+          {
+            "name": "authorization",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "JWT-auth": []
+          }
+        ],
+        "summary": "Verify user balance",
+        "tags": [
+          "Admin"
+        ]
+      }
+    },
     "/leaderboard": {
       "get": {
         "description": "Returns top players sorted by specified category",
