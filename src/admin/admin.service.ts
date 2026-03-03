@@ -376,4 +376,87 @@ export class AdminService {
             }))
         };
     }
+
+    // 🧪 Расчет тестового сценария матча
+    async calculateTestScenario(playerIds: string[], stakeVp: number, scenario: 'pvp' | 'pvb' | 'mixed') {
+        const players = [];
+        let totalPlayers = playerIds.length;
+        let botCount = 0;
+        
+        if (scenario === 'pvb') {
+            botCount = 1;
+            totalPlayers = 2;
+        } else if (scenario === 'mixed') {
+            botCount = Math.max(1, 5 - playerIds.length);
+            totalPlayers = 5;
+        }
+        
+        // Получаем текущие балансы
+        for (const pid of playerIds) {
+            const wallet = await this.walletRepo.findOne({
+                where: { user: { id: pid } }
+            });
+            const user = await this.userRepo.findOne({ where: { id: pid } });
+            players.push({
+                id: pid,
+                name: user?.displayName || 'Unknown',
+                currentBalance: wallet?.balanceWp || 0,
+                currentFrozen: wallet?.frozenWp || 0
+            });
+        }
+        
+        // Расчеты
+        const totalPot = stakeVp * totalPlayers;
+        const houseFee = Math.floor(totalPot * 0.05);
+        const payout = totalPot - houseFee;
+        
+        // Сценарии результатов
+        const scenarios = [];
+        
+        // Сценарий 1: Первый игрок побеждает
+        const winnerGets = payout;
+        const loserLoses = stakeVp;
+        
+        for (let i = 0; i < players.length; i++) {
+            const p = players[i];
+            const isWinner = i === 0;
+            
+            scenarios.push({
+                player: p.name,
+                currentBalance: p.currentBalance,
+                frozen: stakeVp,
+                ifWins: {
+                    balance: p.currentBalance - stakeVp + winnerGets,
+                    change: -stakeVp + winnerGets,
+                    profit: winnerGets - stakeVp
+                },
+                ifLoses: {
+                    balance: p.currentBalance - stakeVp,
+                    change: -stakeVp,
+                    profit: -stakeVp
+                }
+            });
+        }
+        
+        return {
+            scenario,
+            players: totalPlayers,
+            bots: botCount,
+            stake: stakeVp,
+            calculations: {
+                totalPot,
+                houseFee,
+                payout,
+                winnerProfit: payout - stakeVp,
+                loserLoss: -stakeVp
+            },
+            playerScenarios: scenarios,
+            expectedLogs: [
+                `[BALANCE] FREEZE: each player freezes ${stakeVp} VP`,
+                `[BALANCE] STAKE CONSUMED: all stakes consumed`,
+                `[BALANCE] PAYOUT: winner gets ${payout} VP`,
+                `[BALANCE] House fee: ${houseFee} VP`
+            ]
+        };
+    }
 }

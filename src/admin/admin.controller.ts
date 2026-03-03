@@ -262,4 +262,15 @@ export class AdminController {
         await this.checkAdmin(auth, clientIp);
         return this.adminService.verifyBalance(body.userId, body.expectedBalance);
     }
+
+    @ApiOperation({ summary: 'Test match scenarios', description: 'Calculate expected balances for different match scenarios' })
+    @Post('test-scenarios')
+    async testScenarios(
+        @Headers('authorization') auth: string,
+        @Ip() clientIp: string,
+        @Body() body: { playerIds: string[]; stakeVp: number; scenario: 'pvp' | 'pvb' | 'mixed' }
+    ) {
+        await this.checkAdmin(auth, clientIp);
+        return this.adminService.calculateTestScenario(body.playerIds, body.stakeVp, body.scenario);
+    }
 }
