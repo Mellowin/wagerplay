@@ -1251,6 +1251,13 @@ export class MatchmakingService {
             const matchRoom = `match:${match.matchId}`;
             const realPlayerIds = match.playerIds.filter(pid => !pid.startsWith('BOT'));
             
+            const now = Date.now();
+            const matchCreatedAt = match.createdAt || now;
+            const elapsedSec = Math.floor((now - matchCreatedAt) / 1000);
+            const remainingSec = Math.max(1, 5 - elapsedSec);
+            
+            console.log(`[SERVER] Match ${match.matchId.slice(0,8)} created at ${matchCreatedAt}, now: ${now}, elapsed: ${elapsedSec}s, remaining: ${remainingSec}s`);
+            
             for (const pid of realPlayerIds) {
                 const sockets = await this.server.fetchSockets();
                 const playerSocket = sockets.find(s => s.data?.userId === pid || s.handshake?.auth?.userId === pid);
@@ -1259,7 +1266,8 @@ export class MatchmakingService {
                     // 1. Отправляем match:ready
                     playerSocket.emit('match:ready', { matchId: match.matchId });
                     // 2. Отправляем match:found с отсчётом
-                    playerSocket.emit('match:found', { matchId: match.matchId, countdown: 5, mode: 'PVP' });
+                    console.log(`[SERVER] Sending match:found to ${pid.slice(0,8)} with countdown: ${remainingSec}s (mode: PVP)`);
+                    playerSocket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'PVP', createdAt: matchCreatedAt });
                 }
             }
             console.log(`[tryAssembleMatch] Match ${match.matchId.slice(0,8)} created, notified ${realPlayerIds.length} players`);

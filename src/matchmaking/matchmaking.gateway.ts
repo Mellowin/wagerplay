@@ -94,8 +94,9 @@ export class MatchmakingGateway {
         if (elapsedSec < 5) {
           const remainingSec = 5 - elapsedSec;
           console.log(`[Gateway] User ${userId.slice(0,8)} reconnected during countdown (${remainingSec}s left)`);
+          console.log(`[Gateway] RECONNECT match:found -> ${userId.slice(0,8)}: countdown=${remainingSec}, createdAt=${match.createdAt}, now=${Date.now()}`);
           
-          socket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'RECONNECT' });
+          socket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'RECONNECT', createdAt: match.createdAt });
           
           // Отправляем оставшиеся секунды отсчёта
           for (let i = remainingSec; i >= 1; i--) {

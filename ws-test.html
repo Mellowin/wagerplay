@@ -4074,6 +4074,8 @@
 
             // 🎮 МАТЧ НАЙДЕН! - показываем экран с отсчётом
             socket.on("match:found", (data) => {
+                console.log(`[CLIENT match:found] RECEIVED:`, JSON.stringify(data));
+                console.log(`[CLIENT match:found] data.countdown=${data.countdown}, data.mode=${data.mode}, data.createdAt=${data.createdAt}`);
                 showToast('success', t('matchFound') || 'Матч найден!', t('gameStarting') || 'Игра начинается...');
                 
                 // 🧹 Очищаем таймер поиска (при F5 восстановлении)
@@ -4099,6 +4101,8 @@
                 
                 // 🔄 При RECONNECT используем countdown от сервера, иначе 5
                 const initialCount = (data.mode === 'RECONNECT' && data.countdown) ? data.countdown : 5;
+                console.log(`[CLIENT match:found] CALCULATED initialCount=${initialCount} (mode=${data.mode}, countdown=${data.countdown})`);
+                console.log(`[CLIENT match:found] Using countdown: ${initialCount}s, server said: ${data.countdown}s`);
                 console.log(`[match:found] Starting countdown: ${initialCount}s (mode: ${data.mode || 'normal'})`);
                 
                 // Показываем экран ожидания с большим таймером
