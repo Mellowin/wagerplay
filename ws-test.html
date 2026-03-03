@@ -4003,6 +4003,8 @@
                 }
                 
                 log(`🔄 Синхронизация: ${m.playersFound}/${m.totalNeeded} игроков, осталось ${m.secondsLeft}сек`);
+                // 🛑 Останавливаем старый таймер перед запуском нового
+                stopCountdown();
                 // Обновляем UI с синхронизированным временем
                 showWaiting(`Ищем соперников (${m.playersFound}/${m.totalNeeded})...`, true, m.secondsLeft);
             });
