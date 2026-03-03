@@ -5857,12 +5857,9 @@
         }
         
         function setupActivityTracking() {
-            // Отслеживаем любую активность на странице
-            document.addEventListener('click', pingActivity, true);
-            document.addEventListener('keydown', pingActivity, true);
-            document.addEventListener('mousemove', pingActivity, true);
-            document.addEventListener('scroll', pingActivity, true);
-            console.log('[ActivityPing] Tracking setup');
+            // ⚠️ Отключено: /admin/activity требует прав админа
+            // Сессия продлевается автоматически через WebSocket и другие запросы
+            return;
         }
         
         async function pingAdminSession() {
