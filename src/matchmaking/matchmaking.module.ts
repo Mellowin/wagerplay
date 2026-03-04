@@ -8,10 +8,11 @@ import { UserStats } from '../users/user-stats.entity';
 import { MatchmakingGateway } from './matchmaking.gateway';
 import { AuditModule } from '../audit/audit.module';
 import { HouseModule } from '../house/house.module';
+import { BotService } from './bot.service';
 
 @Module({
     imports: [TypeOrmModule.forFeature([User, Wallet, UserStats]), AuditModule, HouseModule],
-    providers: [MatchmakingService, MatchmakingGateway],
+    providers: [MatchmakingService, MatchmakingGateway, BotService],
     controllers: [MatchmakingController],
     exports: [MatchmakingService],
 })

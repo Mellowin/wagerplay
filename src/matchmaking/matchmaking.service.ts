@@ -8,6 +8,8 @@ import { Wallet } from '../wallets/wallet.entity';
 import { UserStats } from '../users/user-stats.entity';
 import { AuditService } from '../audit/audit.service';
 import { HouseService } from '../house/house.service';
+import { Move, MatchStatus, Ticket, Match } from './types';
+import { BotService } from './bot.service';
 
 const ALLOWED_PLAYERS = new Set([2, 3, 4, 5]);
 const ALLOWED_STAKES = new Set([100, 200, 500, 1000, 2500, 5000, 10000]);
@@ -19,85 +21,8 @@ const BOT_FALLBACK_TIMEOUT_SEC = 5;       // 5 сек до ботов если �
 const MIN_REAL_PLAYERS_FOR_PVP = 2;       // Минимум 2 игрока для PVP
 const FROZEN_STAKE_TIMEOUT_MS = 5 * 60 * 1000; // ⏱️ 5 минут на заморозку ставки
 
-// 🎮 Реалистичные ники для ботов
-const BOT_NICKNAMES = [
-    'Alex_Pro', 'LuckyShot', 'MasterRock', 'ScissorsKing', 'PaperTigress',
-    'RockStar', 'NinjaMove', 'PhantomHand', 'BlitzPlay', 'StormGamer',
-    'CyberFist', 'IronGrip', 'SwiftCut', 'SilentWin', 'DarkHorse',
-    'FlashBang', 'NoMercy', 'RisingSun', 'IceBreaker', 'FireStorm',
-    'ShadowHunter', 'ThunderBolt', 'QuickDraw', 'SteelFist', 'ViperStrike',
-    'GhostRider', 'BladeRunner', 'MegaMind', 'SuperNova', 'ThunderBird',
-    'CrystalEye', 'DiamondHand', 'GoldenTouch', 'SilverBullet', 'BronzeBeast',
-    'NightWolf', 'DayWalker', 'StarLord', 'MoonLight', 'SunTzu',
-    'TigerClaw', 'DragonFist', 'EagleEye', 'SharkBite', 'WolfPack',
-    'CobraKai', 'Panthera', 'Grizzly', 'FalconPunch', 'PhoenixRise'
-];
-
-// ✅ NEW: тип хода (чтобы не было "любой строкой")
-type Move = 'ROCK' | 'PAPER' | 'SCISSORS';
-
-// ✅ NEW: статус матча расширили
-type MatchStatus = 'READY' | 'BOT_MATCH' | 'IN_PROGRESS' | 'FINISHED' | 'CANCELLED';
-
-type Ticket = {
-    ticketId: string;
-    userId: string;
-    playersCount: number;
-    stakeVp: number;
-    createdAt: number; // ms
-    displayName?: string; // 👤 Имя игрока
-};
-
-// ✅ UPDATED: Match теперь хранит выбывших/живых и победителя
-type Match = {
-    matchId: string;
-    playersCount: number;
-    stakeVp: number;
-    potVp: number;
-    feeRate: number;
-    feeVp: number;
-    payoutVp: number;
-    settled: boolean;
-
-    // все игроки матча (включая BOT1/BOT2/BOT3)
-    playerIds: string[];
-
-    // кто еще в игре
-    aliveIds: string[];
-
-    // кто выбыл
-    eliminatedIds: string[];
-
-    // 🎮 Никнеймы ботов (id -> nickname)
-    botNames?: Record<string, string>;
-    
-    // 👤 Имена игроков (id -> displayName)
-    playerNames?: Record<string, string>;
-
-    // ⏱️ Таймеры
-    moveDeadline?: number;        // Дедлайн для хода (timestamp)
-    moveTimerStarted?: number;    // Когда запустился таймер хода
-    
-    createdAt: number;
-    status: MatchStatus;
-
-    round: number;
-
-    // ходы текущего раунда
-    moves: Record<string, Move>;
-
-    lastRound?: {
-        roundNo: number;
-        moves: Record<string, Move>;
-        outcome: 'TIE' | 'ELIMINATION';
-        reason?: 'ALL_SAME' | 'ALL_THREE';
-        winningMove?: Move;
-        winners?: string[];
-        losers?: string[];
-    };
-    winnerId?: string;
-    finishedAt?: number;
-};
+// Re-export types for backward compatibility
+export type { Move, MatchStatus, Ticket, Match } from './types';
 
 @Injectable()
 export class MatchmakingService {
@@ -120,6 +45,7 @@ export class MatchmakingService {
         private audit: AuditService,
         private house: HouseService,
         private dataSource: DataSource,
+        private botService: BotService,
     ) {
         this.redis = new Redis({
             host: this.cfg.get<string>('REDIS_HOST') || 'localhost',
@@ -234,14 +160,13 @@ export class MatchmakingService {
         return variants[Math.floor(Math.random() * variants.length)];
     }
 
-    private isBot(id: string) {
-        return id.startsWith('BOT');
+    // 🤖 Delegated to BotService
+    private isBot(id: string): boolean {
+        return this.botService.isBot(id);
     }
 
-    // 🎮 Получить случайные ники для ботов
     private getRandomBotNames(count: number): string[] {
-        const shuffled = [...BOT_NICKNAMES].sort(() => 0.5 - Math.random());
-        return shuffled.slice(0, count);
+        return this.botService.getRandomBotNames(count);
     }
 
     private async getWalletByUserId(userId: string) {
