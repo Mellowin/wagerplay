@@ -33,6 +33,30 @@ export interface AdminSessionResult {
     error?: string;
 }
 
+export interface ScenarioResult {
+    player: string;
+    currentBalance: number;
+    frozen: number;
+    ifWins: { balance: number; change: number; profit: number };
+    ifLoses: { balance: number; change: number; profit: number };
+}
+
+export interface TestScenarioResult {
+    scenario: 'pvp' | 'pvb' | 'mixed';
+    players: number;
+    bots: number;
+    stake: number;
+    calculations: {
+        totalPot: number;
+        houseFee: number;
+        payout: number;
+        winnerProfit: number;
+        loserLoss: number;
+    };
+    playerScenarios: ScenarioResult[];
+    expectedLogs: string[];
+}
+
 @Injectable()
 export class AdminService {
     constructor(
@@ -69,7 +93,7 @@ export class AdminService {
         
         console.log(`[AdminService] User email: ${user.email}`);
         console.log(`[AdminService] User adminIp: ${user.adminIp}`);
-        console.log(`[AdminService] User lastAdminActivity: ${user.lastAdminActivity}`);
+        console.log(`[AdminService] User lastAdminActivityMs: ${user.lastAdminActivityMs}`);
 
         // Проверка email в whitelist
         if (!user.email || !adminEmails.includes(user.email.toLowerCase())) {
@@ -378,19 +402,12 @@ export class AdminService {
     }
 
     // 🧪 Расчет тестового сценария матча
-    async calculateTestScenario(playerIds: string[], stakeVp: number, scenario: 'pvp' | 'pvb' | 'mixed') {
+    async calculateTestScenario(playerIds: string[], stakeVp: number, scenario: 'pvp' | 'pvb' | 'mixed'): Promise<TestScenarioResult> {
         interface PlayerInfo {
             id: string;
             name: string;
             currentBalance: number;
             currentFrozen: number;
-        }
-        interface ScenarioResult {
-            player: string;
-            currentBalance: number;
-            frozen: number;
-            ifWins: { balance: number; change: number; profit: number };
-            ifLoses: { balance: number; change: number; profit: number };
         }
         
         const players: PlayerInfo[] = [];

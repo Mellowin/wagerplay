@@ -5871,9 +5871,11 @@
         }
         
         function setupActivityTracking() {
-            // ⚠️ Отключено: /admin/activity требует прав админа
-            // Сессия продлевается автоматически через WebSocket и другие запросы
-            return;
+            // 🖱️ Отслеживаем активность для продления админской сессии
+            document.addEventListener('click', pingActivity, true);
+            document.addEventListener('keydown', pingActivity, true);
+            document.addEventListener('mousemove', pingActivity, true);
+            console.log('[ActivityTracking] Global tracking enabled');
         }
         
         async function pingAdminSession() {

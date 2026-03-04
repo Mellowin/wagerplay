@@ -9,7 +9,7 @@ import {
     Ip,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { AdminService } from './admin.service';
+import { AdminService, TestScenarioResult } from './admin.service';
 import { getUserIdFromToken } from '../common/token.utils';
 import { Throttle } from '@nestjs/throttler';
 
@@ -269,7 +269,7 @@ export class AdminController {
         @Headers('authorization') auth: string,
         @Ip() clientIp: string,
         @Body() body: { playerIds: string[]; stakeVp: number; scenario: 'pvp' | 'pvb' | 'mixed' }
-    ) {
+    ): Promise<TestScenarioResult> {
         await this.checkAdmin(auth, clientIp);
         return this.adminService.calculateTestScenario(body.playerIds, body.stakeVp, body.scenario);
     }

@@ -137,6 +137,14 @@ export class AuthService {
       throw new UnauthorizedException(`Аккаунт заблокирован. Причина: ${user.banReason || 'Нарушение правил'}`);
     }
 
+    // 🔄 Если админ — сбрасываем сессию при логине
+    const ADMIN_EMAILS = ['mellowin1987@gmail.com', 'osanamyan@ukr.net'];
+    if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+      user.lastAdminActivityMs = Date.now();
+      await this.usersRepo.save(user);
+      console.log(`[Auth] Admin session reset on login: ${user.email}`);
+    }
+
     // Генерируем JWT token с подписью
     const token = this.jwtService.sign({ sub: user.id, email: user.email });
 
