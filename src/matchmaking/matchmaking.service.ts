@@ -440,17 +440,15 @@ export class MatchmakingService {
                     const queueStartTime = await this.redis.get(queueTimeKey);
                     if (!queueStartTime) {
                         // Первый игрок — устанавливаем время
-                        console.log(`[processQueueTimeouts] Queue ${q}: setting queueTimeKey`);
                         await this.redis.set(queueTimeKey, Date.now().toString());
                         continue;
                     }
                     
                     const elapsedSec = Math.floor((Date.now() - parseInt(queueStartTime)) / 1000);
-                    console.log(`[processQueueTimeouts] Queue ${q}: ${len} players, ${elapsedSec}s elapsed`);
                     
                     // Если прошло 20+ секунд и есть хотя бы 1 игрок — пробуем собрать матч
                     if (elapsedSec >= 20 && len >= 1) {
-                        console.log(`[processQueueTimeouts] Queue ${q}: TIMEOUT! Creating match with ${len} players`);
+                        console.log(`[Queue] Timeout after ${elapsedSec}s, creating match with ${len} players`);
                         await this.tryAssembleMatch(playersCount, stakeVp, true);
                     }
                 } catch (e) {
@@ -2126,42 +2124,21 @@ export class MatchmakingService {
     // ⏱️ Обработка таймаута хода (игрок не сделал ход)
     async processMoveTimeout(matchId: string, expectedDeadline?: number, expectedRound?: number) {
         if (this.isShuttingDown) return;
-        console.log(`[processMoveTimeout] Processing timeout for ${matchId}, expectedRound=${expectedRound}`);
         
         let m = await this.getMatch(matchId);
-        if (!m || m.status === 'FINISHED') {
-            console.log(`[processMoveTimeout] Match not found or finished`);
-            return;
-        }
+        if (!m || m.status === 'FINISHED') return;
         
         // Проверяем, не изменился ли раунд (раунд уже резолвлен)
-        if (expectedRound && m.round !== expectedRound) {
-            console.log(`[processMoveTimeout] Round changed (${expectedRound} != ${m.round}), skipping outdated timeout`);
-            return;
-        }
+        if (expectedRound && m.round !== expectedRound) return;
         
         // Проверяем, не устарел ли дедлайн
-        if (expectedDeadline && m.moveDeadline && m.moveDeadline !== expectedDeadline) {
-            console.log(`[processMoveTimeout] Deadline changed (${expectedDeadline} != ${m.moveDeadline}), skipping outdated timeout`);
-            return;
-        }
-        
-        console.log(`[processMoveTimeout] Initial aliveIds: ${JSON.stringify(m.aliveIds)}, moves: ${JSON.stringify(m.moves)}, round: ${m.round}`);
+        if (expectedDeadline && m.moveDeadline && m.moveDeadline !== expectedDeadline) return;
 
         // ⚠️ КРИТИЧНО: Перезагружаем из Redis чтобы получить актуальный aliveIds
-        // (игроки могли выбыть пока шел таймер)
         const freshM = await this.getMatch(matchId);
-        if (!freshM || freshM.status === 'FINISHED') {
-            console.log(`[processMoveTimeout] Match not found or finished after reload`);
-            return;
-        }
-        // Проверяем раунд снова после reload
-        if (expectedRound && freshM.round !== expectedRound) {
-            console.log(`[processMoveTimeout] Round changed after reload (${expectedRound} != ${freshM.round}), skipping`);
-            return;
-        }
+        if (!freshM || freshM.status === 'FINISHED') return;
+        if (expectedRound && freshM.round !== expectedRound) return;
         m = freshM;
-        console.log(`[processMoveTimeout] Fresh aliveIds: ${JSON.stringify(m.aliveIds)}, moves: ${JSON.stringify(m.moves)}`);
 
         // Проверяем, не все ли уже походили
         const allMoved = m.aliveIds.every((id) => !!(m?.moves?.[id]));
