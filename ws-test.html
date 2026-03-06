@@ -4971,15 +4971,34 @@
                         showWaiting(`Ищем соперников (${playersFound}/${totalNeeded})...`, true, remainingSeconds);
                         log(`🔄 Восстановлен поиск: ${playersFound}/${totalNeeded}, осталось ${remainingSeconds}с`);
                     } else if (data.activeMatch) {
-                        // Восстанавливаем состояние игры
-                        localStorage.setItem('uiState', 'in-match');
-                        currentMatch = data.activeMatch;
-                        matchId = data.activeMatch.matchId;
-                        activeMatches.add(matchId);
-                        // 🛡️ БЛОКИРУЕМ кнопки игры во время матча
-                        setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
-                        renderMatch(data.activeMatch);
-                        log('🔄 Восстановлен активный матч');
+                        const match = data.activeMatch;
+                        const elapsedSec = Math.floor((Date.now() - match.createdAt) / 1000);
+                        
+                        // Если матч только создан (< 5 сек) — показываем countdown, а не игру
+                        if (match.status === 'READY' && elapsedSec < 5) {
+                            const remainingSec = 5 - elapsedSec;
+                            localStorage.setItem('uiState', 'in-match');
+                            matchId = match.matchId;
+                            activeMatches.add(matchId);
+                            // Показываем countdown экран
+                            showWaiting(`Игроки найдены! Старт через...`, true, remainingSec);
+                            log(`🔄 Восстановлен countdown: ${remainingSec}с`);
+                            
+                            // 🔄 Переподключаем WebSocket к комнате матча (чтобы получать countdown тики)
+                            if (socket && matchId) {
+                                socket.emit('match:join', { matchId });
+                            }
+                        } else {
+                            // Восстанавливаем состояние игры
+                            localStorage.setItem('uiState', 'in-match');
+                            currentMatch = match;
+                            matchId = match.matchId;
+                            activeMatches.add(matchId);
+                            // 🛡️ БЛОКИРУЕМ кнопки игры во время матча
+                            setButtons({ showAuth: false, showUser: false, showConnect: false, connect: false, quickplay: true, balance: true, logs: true });
+                            renderMatch(match);
+                            log('🔄 Восстановлен активный матч');
+                        }
                         
                         // 🔄 Переподключаем WebSocket к комнате матча
                         if (socket && matchId) {

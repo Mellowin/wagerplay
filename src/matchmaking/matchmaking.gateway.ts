@@ -90,28 +90,40 @@ export class MatchmakingGateway {
         const elapsedMs = Date.now() - match.createdAt;
         const elapsedSec = Math.floor(elapsedMs / 1000);
         
-        // Если матч только что создан (< 5 сек) — показываем отсчёт
+        // 🛡️ Проверяем: уже в комнате матча? (уже получил оригинальные события)
+        const roomName = `match:${match.matchId}`;
+        if (socket.rooms.has(roomName)) {
+          return;
+        }
+        
+        // 🛡️ Защита от дублирования F5 recovery таймеров
+        const f5LockKey = `f5recovery:${match.matchId}:${userId}`;
+        const f5Lock = await this.mm.redis.set(f5LockKey, '1', 'EX', 10, 'NX');
+        if (!f5Lock) {
+          return;
+        }
+        
+        // Если матч только что создан (< 5 сек) — просто присоединяем к комнате
         if (elapsedSec < 5) {
           const remainingSec = 5 - elapsedSec;
-          console.log(`[Gateway] User ${userId.slice(0,8)} reconnected during countdown (${remainingSec}s left)`);
           
-          socket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'RECONNECT', createdAt: match.createdAt });
+          // Присоединяем к комнате - countdown тики и match:start придут через комнату
+          socket.join(`match:${match.matchId}`);
           
-          // Отправляем оставшиеся секунды отсчёта
-          for (let i = remainingSec; i >= 1; i--) {
-            setTimeout(() => {
-              socket.emit('match:countdown', { seconds: i });
-            }, (remainingSec - i) * 1000);
-          }
+          // Отправляем текущее состояние countdown для синхронизации
+          socket.emit('match:countdown', { seconds: remainingSec, recovery: true });
           
-          // После отсчёта отправляем match:start
-          setTimeout(async () => {
+          // Удаляем lock сразу
+          await this.mm.redis.del(f5LockKey);
+        } else {
+          // Countdown уже прошел — проверяем, не начался ли уже матч
+          const m = await this.mm.getMatch(match.matchId);
+          if (m?.status === 'IN_PROGRESS' && m.moveDeadline) {
             socket.join(`match:${match.matchId}`);
-            const m = await this.mm.getMatch(match.matchId);
-            if (m && m.moveDeadline) {
-              socket.emit('match:start', { ...m, deadline: m.moveDeadline });
-            }
-          }, remainingSec * 1000);
+            socket.emit('match:start', { ...m, deadline: m.moveDeadline });
+          }
+          // Удаляем lock сразу
+          await this.mm.redis.del(f5LockKey);
         }
       }
     } catch (e) {

@@ -1224,11 +1224,11 @@ export class MatchmakingService {
                     // 1. Отправляем match:ready
                     playerSocket.emit('match:ready', { matchId: match.matchId });
                     // 2. Отправляем match:found с отсчётом
-
+                    // Отправляем match:found игроку
                     playerSocket.emit('match:found', { matchId: match.matchId, countdown: remainingSec, mode: 'PVP', createdAt: matchCreatedAt });
                 }
             }
-            console.log(`[tryAssembleMatch] Match ${match.matchId.slice(0,8)} created, notified ${realPlayerIds.length} players`);
+            console.log(`[Matchmaking] Match ${match.matchId.slice(0,8)} created, ${realPlayerIds.length} players`);
             
             // Отправляем отсчёт 5-4-3-2-1 всем в комнате
             for (let i = 5; i >= 1; i--) {
@@ -1266,7 +1266,6 @@ export class MatchmakingService {
                     }
                     
                     if (m && this.server) {
-
                         const matchWithDeadline = { ...m, deadline: m.moveDeadline };
                         this.server.to(matchRoom).emit('match:start', matchWithDeadline);
                         this.server.to(matchRoom).emit('match:update', matchWithDeadline);
