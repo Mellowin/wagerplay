@@ -3444,10 +3444,12 @@
                 console.log('[window.onload] Restored selectedStake:', selectedStake);
             }
             
-            // 🖱️ Запускаем отслеживание активности (для продления админской сессии)
-            if (token) {
-                setupActivityTracking();
-            }
+            // 🖱️ Запускаем отслеживание активности (только для админов) после загрузки профиля
+            setTimeout(() => {
+                if (token && isAdmin) {
+                    setupActivityTracking();
+                }
+            }, 1000);
             // Initialize button text with saved (or default) values
             const btnText = document.getElementById('playBtnText');
             const stakeText = selectedStake >= 1000 ? (selectedStake/1000) + 'K' : selectedStake;
@@ -4893,10 +4895,14 @@
             'osanamyan@ukr.net'
         ];
 
+        // Global admin flag
+        let isAdmin = false;
+        
         // Check if user is admin
         function checkAdminAccess(userEmail) {
             const adminItem = document.getElementById('adminMenuItem');
-            if (adminItem && userEmail && ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+            isAdmin = userEmail && ADMIN_EMAILS.includes(userEmail.toLowerCase());
+            if (adminItem && isAdmin) {
                 adminItem.style.display = 'flex';
             }
         }

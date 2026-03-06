@@ -1,80 +1,59 @@
 import { Injectable } from '@nestjs/common';
-import { randomInt } from 'crypto';
-import { Match, Move } from './types';
 
-// 🎮 Реалистичные ники для ботов
-const BOT_NICKNAMES = [
-    'Alex_Pro', 'LuckyShot', 'MasterRock', 'ScissorsKing', 'PaperTigress',
-    'RockStar', 'NinjaMove', 'PhantomHand', 'BlitzPlay', 'StormGamer',
-    'CyberFist', 'IronGrip', 'SwiftCut', 'SilentWin', 'DarkHorse',
-    'FlashBang', 'NoMercy', 'RisingSun', 'IceBreaker', 'FireStorm',
-    'ShadowHunter', 'ThunderBolt', 'QuickDraw', 'SteelFist', 'ViperStrike',
-    'GhostRider', 'BladeRunner', 'MegaMind', 'SuperNova', 'ThunderBird',
-    'CrystalEye', 'DiamondHand', 'GoldenTouch', 'SilverBullet', 'BronzeBeast',
-    'NightWolf', 'DayWalker', 'StarLord', 'MoonLight', 'SunTzu',
-    'TigerClaw', 'DragonFist', 'EagleEye', 'SharkBite', 'WolfPack',
-    'CobraKai', 'Panthera', 'Grizzly', 'FalconPunch', 'PhoenixRise'
+const BOT_NAMES = [
+    'ShadowHunter', 'NightStalker', 'CyberWolf', 'PhantomX', 'IronClaw',
+    'NeoStrike', 'DarkViper', 'ThunderBot', 'GhostRider', 'SteelFang',
+    'VenomStrike', 'BlazeRunner', 'FrostByte', 'NovaBlast', 'EchoZero',
+    'RogueAI', 'MechaLord', 'VoidWalker', 'StarCrusher', 'NinjaBot',
 ];
 
+/**
+ * Сервис для работы с ботами
+ * Генерация имён, ходов, проверка типа игрока
+ */
 @Injectable()
 export class BotService {
-    
     /**
      * Проверяет является ли ID ботом
      */
     isBot(id: string): boolean {
-        return id.startsWith('BOT');
+        return id?.startsWith('BOT') ?? false;
     }
 
     /**
      * Генерирует случайные имена для ботов
      */
     getRandomBotNames(count: number): string[] {
-        const shuffled = [...BOT_NICKNAMES].sort(() => 0.5 - Math.random());
+        const shuffled = [...BOT_NAMES].sort(() => Math.random() - 0.5);
         return shuffled.slice(0, count);
     }
 
     /**
-     * Фильтрует только реальных игроков (не ботов)
+     * Генерирует случайный ход для бота
      */
-    filterRealPlayers(playerIds: string[]): string[] {
-        return playerIds.filter(id => !this.isBot(id));
+    generateBotMove(): 'ROCK' | 'PAPER' | 'SCISSORS' {
+        const moves: ('ROCK' | 'PAPER' | 'SCISSORS')[] = ['ROCK', 'PAPER', 'SCISSORS'];
+        return moves[Math.floor(Math.random() * moves.length)];
     }
 
     /**
-     * Проверяет остались ли только боты
-     */
-    onlyBotsLeft(aliveIds: string[]): boolean {
-        return aliveIds.every(id => this.isBot(id));
-    }
-
-    /**
-     * Проверяет есть ли боты в матче
+     * Проверяет есть ли в массиве хотя бы один бот
      */
     hasBots(playerIds: string[]): boolean {
         return playerIds.some(id => this.isBot(id));
     }
 
     /**
-     * Генерирует случайный ход для бота
+     * Фильтрует только реальных игроков (не ботов)
      */
-    generateBotMove(): Move {
-        const moves: Move[] = ['ROCK', 'PAPER', 'SCISSORS'];
-        return moves[randomInt(0, 3)];
+    getRealPlayers(playerIds: string[]): string[] {
+        return playerIds.filter(id => !this.isBot(id));
     }
 
     /**
-     * Создаёт ходы для всех ботов в матче
+     * Проверяет все ли игроки - боты
      */
-    generateBotMoves(match: Match): Record<string, Move> {
-        const botMoves: Record<string, Move> = {};
-        
-        for (const playerId of match.aliveIds) {
-            if (this.isBot(playerId) && !match.moves[playerId]) {
-                botMoves[playerId] = this.generateBotMove();
-            }
-        }
-        
-        return botMoves;
+    allBots(playerIds: string[]): boolean {
+        return playerIds.length > 0 && playerIds.every(id => this.isBot(id));
     }
 }

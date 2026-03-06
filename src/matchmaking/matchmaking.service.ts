@@ -160,15 +160,6 @@ export class MatchmakingService {
         return variants[Math.floor(Math.random() * variants.length)];
     }
 
-    // 🤖 Delegated to BotService
-    private isBot(id: string): boolean {
-        return this.botService.isBot(id);
-    }
-
-    private getRandomBotNames(count: number): string[] {
-        return this.botService.getRandomBotNames(count);
-    }
-
     private async getWalletByUserId(userId: string) {
         // важно: relations: { user: true } чтобы where по user.id работал стабильно
         return this.walletsRepo.findOne({
@@ -326,7 +317,7 @@ export class MatchmakingService {
         console.log(`[cancelMatch] Cancelling match ${matchId}, reason: ${reason}`);
 
         // Возвращаем замороженные средства всем реальным игрокам
-        const realPlayers = m.playerIds.filter(id => !this.isBot(id));
+        const realPlayers = m.playerIds.filter(id => !this.botService.isBot(id));
         
         for (const userId of realPlayers) {
             await this.dataSource.transaction(async manager => {
@@ -1147,7 +1138,7 @@ export class MatchmakingService {
         playerIds.push(...botIds);
 
         // ✅ Генерируем имена для ботов
-        const botNames = this.getRandomBotNames(botsNeeded);
+        const botNames = this.botService.getRandomBotNames(botsNeeded);
         const botNamesMap: Record<string, string> = {};
         botIds.forEach((id, i) => {
             botNamesMap[id] = botNames[i];
@@ -1367,7 +1358,7 @@ export class MatchmakingService {
         if (practice) {
             await this.redis.del(this.ticketKey(ticketId));
 
-            const botNames = this.getRandomBotNames(t.playersCount - 1);
+            const botNames = this.botService.getRandomBotNames(t.playersCount - 1);
             const bots = botNames.map((name, i) => `BOT${i + 1}`);
             const allPlayers = [t.userId, ...bots];
 
@@ -1428,7 +1419,7 @@ export class MatchmakingService {
         // удаляем ticket ТОЛЬКО после успешного freeze
         await this.redis.del(this.ticketKey(ticketId));
 
-        const botNames = this.getRandomBotNames(t.playersCount - 1);
+        const botNames = this.botService.getRandomBotNames(t.playersCount - 1);
         const bots = botNames.map((name, i) => `BOT${i + 1}`);
         const allPlayers = [t.userId, ...bots];
 
@@ -1487,8 +1478,8 @@ export class MatchmakingService {
 
         const houseId = this.house.getHouseId();
 
-        const hasBots = (m.playerIds || []).some((id: string) => this.isBot(id));
-        const realPlayers = (m.playerIds || []).filter((id: string) => !this.isBot(id));
+        const hasBots = (m.playerIds || []).some((id: string) => this.botService.isBot(id));
+        const realPlayers = (m.playerIds || []).filter((id: string) => !this.botService.isBot(id));
 
         // 1) Списываем frozen у реальных игроков (они уже оплатили stake при freeze)
         console.log(`[BALANCE] SETTLE START: match=${m.matchId.slice(0,8)}, players=${realPlayers.length}, stake=${m.stakeVp}`);
@@ -1531,7 +1522,7 @@ export class MatchmakingService {
         // 3) Выплата победителю (payout)
         console.log(`[BALANCE] PAYOUT START: match=${m.matchId.slice(0,8)}, winner=${m.winnerId?.slice(0,8)}, payout=${m.payoutVp}`);
         if (m.winnerId) {
-            if (!this.isBot(m.winnerId)) {
+            if (!this.botService.isBot(m.winnerId)) {
                 // победил человек
                 const w = await this.getWalletByUserId(m.winnerId);
                 if (w) {
@@ -1741,7 +1732,7 @@ export class MatchmakingService {
         // Оставляем для совместимости, но не используем в новом коде
         let guard = 0;
 
-        while (m.status !== 'FINISHED' && m.aliveIds.length > 0 && m.aliveIds.every((id) => this.isBot(id))) {
+        while (m.status !== 'FINISHED' && m.aliveIds.length > 0 && m.aliveIds.every((id) => this.botService.isBot(id))) {
             guard += 1;
             if (guard > 50) break; // safety
 
@@ -1773,7 +1764,7 @@ export class MatchmakingService {
         }
         
         // Проверяем, что все оставшиеся — боты
-        if (!m.aliveIds.every((id: string) => this.isBot(id))) {
+        if (!m.aliveIds.every((id: string) => this.botService.isBot(id))) {
             return m;
         }
 
