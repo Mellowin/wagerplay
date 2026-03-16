@@ -85,6 +85,7 @@ export class MatchmakingGateway {
     // 🆕 Проверяем, находится ли игрок в матче (F5 восстановление)
     try {
       const activeMatch = await this.mm.getUserActiveState(userId);
+      
       if (activeMatch.activeMatch) {
         const match = activeMatch.activeMatch;
         const elapsedMs = Date.now() - match.createdAt;
@@ -118,7 +119,8 @@ export class MatchmakingGateway {
         } else {
           // Countdown уже прошел — проверяем, не начался ли уже матч
           const m = await this.mm.getMatch(match.matchId);
-          if (m?.status === 'IN_PROGRESS' && m.moveDeadline) {
+          
+          if ((m?.status === 'IN_PROGRESS' || m?.status === 'READY') && m.moveDeadline) {
             socket.join(`match:${match.matchId}`);
             socket.emit('match:start', { ...m, deadline: m.moveDeadline });
           }

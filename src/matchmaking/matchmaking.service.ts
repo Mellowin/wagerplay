@@ -412,32 +412,24 @@ export class MatchmakingService {
     async processQueueTimeouts(): Promise<void> {
         if (this.isShuttingDown) return;
         
-        // Логируем только при наличии игроков в очереди (не каждый tick)
-        
         for (const playersCount of ALLOWED_PLAYERS) {
             for (const stakeVp of ALLOWED_STAKES) {
                 const q = this.qKey(playersCount, stakeVp);
                 const queueTimeKey = `queue:time:${playersCount}:${stakeVp}`;
                 
                 try {
-                    // Проверяем есть ли игроки в очереди
                     const len = await this.redis.llen(q);
-                    
-                    
                     
                     if (len === 0) continue;
                     
-                    // Проверяем время начала очереди
                     const queueStartTime = await this.redis.get(queueTimeKey);
                     if (!queueStartTime) {
-                        // Первый игрок — устанавливаем время
                         await this.redis.set(queueTimeKey, Date.now().toString());
                         continue;
                     }
                     
                     const elapsedSec = Math.floor((Date.now() - parseInt(queueStartTime)) / 1000);
                     
-                    // Если прошло 20+ секунд и есть хотя бы 1 игрок — пробуем собрать матч
                     if (elapsedSec >= 20 && len >= 1) {
                         console.log(`[Queue] Timeout after ${elapsedSec}s, creating match with ${len} players`);
                         await this.tryAssembleMatch(playersCount, stakeVp, true);
@@ -993,7 +985,6 @@ export class MatchmakingService {
         // 🛡️ Защита от двойного создания матча (race condition)
         const lock = await this.redis.set(lockKey, '1', 'EX', 5, 'NX');
         if (!lock) {
-            console.log(`[tryAssembleMatch] Lock exists, skipping duplicate`);
             return null;
         }
 
@@ -1007,13 +998,11 @@ export class MatchmakingService {
         // 🧹 Если очередь пуста - сбрасываем время начала очереди
         if (len === 0) {
             await this.redis.del(queueTimeKey);
-            console.log(`[tryAssembleMatch] Queue empty, reset queueTime`);
             return null;
         }
         
         // ✅ Если меньше 2 реальных игроков и не force-режим - не собираем матч
         if (len < 2 && !force) {
-            console.log(`[tryAssembleMatch] Not enough players (${len}) and force=${force}, waiting...`);
             return null;
         }
         
@@ -1039,7 +1028,6 @@ export class MatchmakingService {
         const isFull = len >= playersCount;
         
         if (!force && !isTimeUp && !isFull) {
-            console.log(`[tryAssembleMatch] Waiting... ${len}/5 players, ${elapsedSec}/20 sec`);
             return null;
         }
         
